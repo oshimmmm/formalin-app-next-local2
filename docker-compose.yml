@@ -1,0 +1,45 @@
+version: '3.8'
+
+networks:
+  formalin-network:
+
+services:
+  formalin-next-db:
+    image: postgres:17
+    container_name: formalin-next-db-container
+    networks:
+      - formalin-network 
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: formalin_next_db 
+    ports:
+      - '5434:5432'
+    volumes:
+      - formalin-next-db-data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d
+    restart: always
+
+  formalin-next-app: 
+    build: .
+    container_name: formalin-next-app-container
+    env_file:
+      - .env
+    networks: 
+      - formalin-network
+    environment:
+      NODE_ENV: production
+      API_URL: "https://example.com/api"
+      PORT: 3003
+      DB_HOST: formalin-next-db 
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: formalin_next_db 
+    ports:
+      - '3003:3003'
+    depends_on:
+      - formalin-next-db 
+    restart: always
+
+volumes:
+  formalin-next-db-data:
