@@ -23,28 +23,46 @@ const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        console.log("[authorize] 1: credentials:", credentials);
+
         if (!credentials?.username || !credentials?.password) {
           throw new Error("Missing username or password");
         }
 
+        console.log("[authorize] 2: before findUnique");
+        try {
         const user = await prisma.user.findUnique({
           where: { username: credentials.username },
         });
+        console.log("[authorize] 3: user found:", user);
+        
         if (!user) {
+          console.log("[authorize] 4: -> User not found");
           throw new Error("User not found");
         }
 
         // パスワードチェック
+        console.log("[authorize] 5: before bcrypt.compare");
         const isValid = await bcrypt.compare(credentials.password, user.password);
+        console.log("[authorize] 6: password valid:", isValid);
+
         if (!isValid) {
+          console.log("[authorize] 7: -> Invalid password");
           throw new Error("Invalid password");
         }
 
+        console.log("[authorize] 8: -> success, returning user");
         return {
           id: user.id,
           username: user.username,
           isAdmin: user.isAdmin,
         };
+
+      } catch (err) {
+        console.error("[authorize] findUnique error:", err);
+    // throw err; // or return null; etc.
+    throw new Error("Database error");
+      }
       },
     }),
   ],

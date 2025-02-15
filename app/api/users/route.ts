@@ -41,3 +41,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export async function GET() {
+  try {
+    // 全ユーザー名を取得
+    const users = await prisma.user.findMany({
+      select: { username: true },
+      orderBy: { username: "asc" },
+    });
+    const usernames = users.map((u) => u.username);
+    return NextResponse.json({ users: usernames });
+  } catch (error: unknown) {
+    console.error("ユーザー一覧取得エラー:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ success: false, message }, { status: 500 });
+  }
+}
