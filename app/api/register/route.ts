@@ -1,6 +1,7 @@
 // app/api/register/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
+import bcrypt from "bcrypt";
 
 // POST /api/register
 // Body: { username, password, isAdmin }
@@ -17,11 +18,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // User を作成 (本来は bcrypt.hash() するのが望ましい)
+    // 1) パスワードをハッシュ化（ソルトラウンドは 10 など適宜）
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 2) User を作成 (ハッシュ済みのパスワードを保存)
     const newUser = await prisma.user.create({
       data: {
         username,
-        password,
+        password: hashedPassword,
         isAdmin,
       },
     });

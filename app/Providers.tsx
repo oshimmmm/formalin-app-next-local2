@@ -1,19 +1,14 @@
-// app/Providers.tsx
 "use client";
 
 import { SessionProvider } from "next-auth/react";
+import { FormalinProvider } from "./Providers/FormalinProvider"; // ← 実在するパスに合わせる
 import Header from "./components/Header";
-import { useSession } from "next-auth/react";
 import React from "react";
-
-// 追加: FormalinProvider を読み込む
-import { FormalinProvider } from "./Providers/FormalinProvider";
+import { useSession } from "next-auth/react";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    // NextAuthのセッション管理
     <SessionProvider>
-      {/* ホルマリン管理コンテキスト */}
       <FormalinProvider>
         <LayoutWithHeader>
           {children}
@@ -23,21 +18,20 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** 
- * Headerの表示を制御したい場合は、サブコンポーネントでuseSession()を呼ぶ 
- */
 function LayoutWithHeader({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession();
-  console.log("LayoutWithHeader -> session:", session, "status:", status);
+  const { data: session } = useSession();
+  const showHeader = !!session?.user; // ユーザーがいれば表示
 
   return (
     <>
-      {session?.user && (
+      {showHeader && (
         <div className="fixed top-0 left-0 w-full z-50 h-16 hide-on-print">
           <Header />
         </div>
       )}
-      <main>{children}</main>
+      <main className="pt-16">
+        {children}
+      </main>
     </>
   );
 }

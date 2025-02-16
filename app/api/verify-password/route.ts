@@ -1,6 +1,7 @@
 // app/api/verify-password/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
+import bcrypt from "bcrypt";
 
 // POST /api/verify-password
 // Body: { username, password }
@@ -10,14 +11,22 @@ export async function POST(req: Request) {
 
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user) {
-      return NextResponse.json({ success: false, message: "ユーザーが存在しません。" });
+      return NextResponse.json({
+        success: false,
+        message: "ユーザーが存在しません。",
+      });
     }
 
-    if (user.password !== password) {
-      // 本来は bcrypt.compare() するのが望ましい
-      return NextResponse.json({ success: false, message: "パスワードが間違っています。" });
+    // bcrypt.compare(平文パスワード, DBに保存されているハッシュ)
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
+      return NextResponse.json({
+        success: false,
+        message: "パスワードが間違っています。",
+      });
     }
 
+    // 照合成功
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     console.error("パスワード検証エラー:", error);
