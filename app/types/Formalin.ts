@@ -7,7 +7,7 @@ export interface Formalin {
     size: string;
     expired: Date;
     lotNumber: string;
-    history: HistoryEntry[];  // 必須
+    histories: HistoryEntry[];  // 必須
   }
   
   export interface HistoryEntry {
@@ -20,6 +20,30 @@ export interface Formalin {
     newPlace: string;
   }
   
+// RawFormalin: 受信時、日付フィールドが string | null になる
+export interface RawFormalin {
+  id: number;
+  key: string;
+  place: string;
+  status: string;
+  size: string;
+  lot_number: string;
+  timestamp: string | null;
+  expired: string | null;
+  histories: RawHistoryEntry[]; // ここを RawHistoryEntry[] とする
+}
+
+// RawHistoryEntry: APIから受け取る生の履歴データ（キーはスネークケース）
+export interface RawHistoryEntry {
+  history_id?: number;
+  updated_by: string;
+  updated_at?: string | null;
+  old_status: string;
+  new_status: string;
+  old_place: string;
+  new_place: string;
+}
+
   // 新規登録時に使う型
   export type NewFormalin = Omit<Formalin, 'id' | 'history'>;
   

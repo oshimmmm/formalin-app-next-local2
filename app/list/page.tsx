@@ -45,7 +45,7 @@ export default function ListPage() {
     : null;
 
   // formalin の履歴配列 (HistoryData[])
-  const history: HistoryEntry[] = selectedFormalin?.history ?? [];
+  const history: HistoryEntry[] = selectedFormalin?.histories ?? [];
 
   return (
     <div>

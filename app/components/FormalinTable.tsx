@@ -4,7 +4,6 @@
 
 import { useState, useMemo } from "react";
 import { Formalin } from "../types/Formalin";
-import { utcStringToJstString } from "../utils/formatDate";
 
 type SortableKey = "key" | "place" | "status" | "timestamp" | "expired" | "size" | "lotNumber";
 
@@ -319,7 +318,7 @@ export default function FormalinTable({
             </td>
             <td className="border border-gray-300 p-2">{f.size}</td>
             <td className="border border-gray-300 p-2">
-              {utcStringToJstString(f.expired.toISOString())}
+              {f.expired ? f.expired.toLocaleDateString("ja-JP") : "--"}
             </td>
             {showLotNumber && (
               <td className="border border-gray-300 p-2">{f.lotNumber}</td>

@@ -64,6 +64,7 @@ export default function OutboundPage() {
         // 既存の場合、状態と場所を "出庫済み" + selectedPlace に更新
         try {
           await editFormalin(existingFormalin.id, {
+            key: serialNumber,
             status: "出庫済み",
             place: selectedPlace,
             timestamp: new Date(),

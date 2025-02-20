@@ -79,6 +79,9 @@ export default function AdminPage() {
       return;
     }
 
+    // 更新前の値（旧値）をグローバルの formalinList から取得
+    const oldRecord = formalinList.find((p) => p.id === id);
+
     // タイムスタンプ
     const now = new Date();
     // UTC扱いかどうかは要件に合わせて
@@ -90,10 +93,16 @@ export default function AdminPage() {
     await editFormalin(
       id,
       {
+        key: targetPost.key,
         place: targetPost.place,
         status: targetPost.status,
         timestamp: timeDate,
         updatedBy: username,
+        updatedAt: timeDate,
+        oldPlace: oldRecord?.place || "",
+        newPlace: targetPost.place,
+        oldStatus: oldRecord?.status || "",
+        newStatus: targetPost.status,
       }
     );
     // DB更新後、Contextが再フェッチ → useEffect => setPosts(formalinList)

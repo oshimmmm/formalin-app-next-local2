@@ -87,6 +87,7 @@ export default function SubmissionPage() {
         // 既存→  "提出済み" に更新
         try {
           await editFormalin(existingFormalin.id, {
+            key: serialNumber,
             status: "提出済み",
             timestamp: new Date(), // 現在時刻
             updatedBy: username,

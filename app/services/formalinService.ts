@@ -1,6 +1,6 @@
 "use client";
 import axios from "axios";
-import { Formalin } from "../types/Formalin";
+import { Formalin, RawFormalin, RawHistoryEntry } from "../types/Formalin";
 
 // Next.js App Routerで /api/formalin を作った場合
 //   GET  /api/formalin       → 一覧
@@ -13,7 +13,26 @@ const API_BASE_URL = "/api/formalin";
 // 1) 一覧取得
 export async function getFormalinData(): Promise<Formalin[]> {
   const res = await axios.get(API_BASE_URL);
-  return res.data as Formalin[];
+  const rawList = res.data as RawFormalin[];
+  const convertedList = rawList.map((item) => {
+    return {
+      ...item,
+      timestamp: item.timestamp ? new Date(item.timestamp) : null,
+      expired:   item.expired ? new Date(item.expired) : null,
+      lotNumber: item.lot_number,
+      // ここで、item.histories を RawHistoryEntry[] としてマッピングし、camelCase に変換する
+      histories: item.histories?.map((h: RawHistoryEntry) => ({
+        history_id: h.history_id,
+        updatedBy: h.updated_by,
+        updatedAt: h.updated_at ? new Date(h.updated_at) : null,
+        oldStatus: h.old_status,
+        newStatus: h.new_status,
+        oldPlace: h.old_place,
+        newPlace: h.new_place,
+      })) || [],
+    } as Formalin;
+  });
+  return convertedList;
 }
 
 // 2) 新規作成

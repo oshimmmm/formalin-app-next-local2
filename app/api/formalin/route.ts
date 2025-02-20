@@ -60,6 +60,7 @@ export async function POST(req: Request) {
     if (updatedBy && updatedAt) {
       await prisma.history.create({
         data: {
+          key: created.key,
           formalinId: created.id,
           updated_by: updatedBy,
           updated_at: new Date(updatedAt),

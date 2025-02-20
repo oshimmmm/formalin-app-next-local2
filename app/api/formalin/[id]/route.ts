@@ -46,6 +46,7 @@ export async function PUT(
     if (updatedBy && updatedAt) {
       await prisma.history.create({
         data: {
+          key: key,
           formalinId: id,
           updated_by: updatedBy,
           updated_at: new Date(updatedAt),
