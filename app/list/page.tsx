@@ -18,12 +18,23 @@ export default function ListPage() {
   const handleBarcodeInput = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       const code = (e.target as HTMLInputElement).value.trim();
-      const parsed = parseFormalinCode(code);
-      if (parsed) {
-        setErrorMessage("");
-        setSearchSerialNumber(parsed.serialNumber);
-      } else {
-        setErrorMessage("このホルマリンはリストにありません。");
+      try {
+        const parsed = parseFormalinCode(code, { checkExpiration: false });
+        if (parsed === null) {
+          // parseFormalinCode が null を返した場合
+          setErrorMessage("このホルマリンはリストにありません。");
+          setSearchSerialNumber(null);
+        } else {
+          setErrorMessage("");
+          setSearchSerialNumber(parsed.serialNumber);
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          // parseFormalinCode でエラーがスローされた場合（例: 有効期限切れ）
+          setErrorMessage(error.message);
+        } else {
+          setErrorMessage("不明なエラーが発生しました");
+        }
         setSearchSerialNumber(null);
       }
     }
@@ -49,17 +60,28 @@ export default function ListPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">詳細一覧ページ</h1>
+      <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">ホルマリン一覧ページ</h1>
       <div className="ml-10">
-        <input
-          type="text"
-          placeholder="バーコードを読み込んでください"
-          value={searchCode}
-          onChange={(e) => setSearchCode(e.target.value)}
-          onKeyDown={handleBarcodeInput} // onKeyPress → onKeyDown
-          className="border border-gray-300 rounded p-2 mb-2 w-1/4"
-        />
-        {errorMessage && <p className="text-red-500">{errorMessage}</p>}
+        {/* input と button を同じ flex コンテナにまとめる */}
+        <div className="flex items-center space-x-2 hide-on-print mb-2">
+          <input
+            type="text"
+            placeholder="バーコードを読ませると検索できます"
+            value={searchCode}
+            onChange={(e) => setSearchCode(e.target.value)}
+            onKeyDown={handleBarcodeInput}
+            className="border border-gray-300 rounded p-2 w-1/4"
+          />
+          <button
+            onClick={() => window.print()}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            印刷
+          </button>
+        </div>
+  
+        {/* エラーメッセージがある場合のみ表示 */}
+        {errorMessage && <p className="text-red-500 text-xl">{errorMessage}</p>}
 
         <FormalinTable
           formalinList={filteredList}

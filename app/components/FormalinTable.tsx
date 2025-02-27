@@ -1,11 +1,16 @@
-// app/components/FormalinTable.tsx (例)
-
 "use client";
 
 import { useState, useMemo } from "react";
 import { Formalin } from "../types/Formalin";
 
-type SortableKey = "key" | "place" | "status" | "timestamp" | "expired" | "size" | "lotNumber";
+type SortableKey =
+  | "key"
+  | "place"
+  | "status"
+  | "timestamp"
+  | "expired"
+  | "size"
+  | "lotNumber";
 
 interface FormalinTableProps {
   formalinList: Formalin[];
@@ -40,14 +45,16 @@ export default function FormalinTable({
     console.log("selectedFilters is: ", selectedFilters);
   };
 
-  // 各列のユニーク値を抽出
+  // 各列のユニーク値抽出
   const uniqueValues = {
     key: Array.from(new Set(formalinList.map((item) => item.key))),
     place: Array.from(new Set(formalinList.map((item) => item.place))),
     status: Array.from(new Set(formalinList.map((item) => item.status))),
     timestamp: Array.from(
       new Set(
-        formalinList.map((item) => (item.timestamp ? item.timestamp.toLocaleString() : "未設定"))
+        formalinList.map((item) =>
+          item.timestamp ? item.timestamp.toLocaleString() : "未設定"
+        )
       )
     ),
     size: Array.from(new Set(formalinList.map((item) => item.size))),
@@ -75,7 +82,7 @@ export default function FormalinTable({
     });
   });
 
-  // ソートを適用 (useMemoで最適化)
+  // ソート適用 (useMemoで最適化)
   const sortedFormalinList = useMemo(() => {
     if (sortConfig === null) {
       return filteredFormalinList;
@@ -105,7 +112,7 @@ export default function FormalinTable({
     });
   }, [filteredFormalinList, sortConfig]);
 
-  // ソート設定を変更
+  // ソート設定変更
   const requestSort = (key: SortableKey) => {
     let direction: "asc" | "desc" = "asc";
     if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
@@ -114,7 +121,7 @@ export default function FormalinTable({
     setSortConfig({ key, direction });
   };
 
-  // ソート中の列にスタイルを当てる
+  // ヘッダー用スタイル
   const getHeaderStyle = (columnKey: keyof Formalin) => {
     return {
       cursor: "pointer",
@@ -123,221 +130,219 @@ export default function FormalinTable({
     };
   };
 
+  // 現在の日本時間を取得するヘルパー関数
+  const getJSTNow = (): Date => {
+    return new Date(new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }));
+  };
+
+  // 有効期限に応じた背景色を返す関数
+  const getExpiredStyle = (expired: Date | null): string => {
+    if (!expired) return "";
+    const now = getJSTNow();
+    if (expired.getTime() < now.getTime()) {
+      return "bg-red-200";
+    }
+    const oneMonthInMs = 30 * 24 * 60 * 60 * 1000;
+    if (expired.getTime() - now.getTime() <= oneMonthInMs) {
+      return "bg-yellow-200";
+    }
+    return "";
+  };
+
   return (
-    <table className="w-11/12 table-fixed text-lg">
-      <thead>
-        <tr>
-          {/* Key 列 */}
-          <th className="border border-gray-300 p-2 text-left whitespace-normal break-words">
-            <div
-              onClick={() => requestSort("key")}
-              style={getHeaderStyle("key")}
-              className="text-lg cursor-pointer"
-            >
-              試薬ID
-            </div>
-            <select
-              value={selectedFilters.key || ""}
-              onChange={(e) => handleFilterChange("key", e.target.value)}
-              className="font-normal border border-gray-300 rounded w-full"
-            >
-              <option value="">すべて</option>
-              {uniqueValues.key.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </th>
-
-          {/* Place */}
-          <th className="border border-gray-300 p-2 text-left">
-            <div
-              onClick={() => requestSort("place")}
-              style={getHeaderStyle("place")}
-              className="text-lg cursor-pointer"
-            >
-              場所
-            </div>
-            <select
-              value={selectedFilters.place || ""}
-              onChange={(e) => handleFilterChange("place", e.target.value)}
-              className="font-normal border border-gray-300 rounded w-full"
-            >
-              <option value="">すべて</option>
-              {uniqueValues.place.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </th>
-
-          {/* Status */}
-          <th className="border border-gray-300 p-2 text-left">
-            <div
-              onClick={() => requestSort("status")}
-              style={getHeaderStyle("status")}
-              className="text-lg cursor-pointer"
-            >
-              状態
-            </div>
-            <select
-              value={selectedFilters.status || ""}
-              onChange={(e) => handleFilterChange("status", e.target.value)}
-              className="font-normal border border-gray-300 rounded w-full"
-            >
-              <option value="">すべて</option>
-              {uniqueValues.status.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </th>
-
-          {/* Timestamp */}
-          <th className="border border-gray-300 p-2 text-left">
-            <div
-              onClick={() => requestSort("timestamp")}
-              style={getHeaderStyle("timestamp")}
-              className="text-lg cursor-pointer"
-            >
-              最終更新日時
-            </div>
-            <select
-              value={selectedFilters.timestamp || ""}
-              onChange={(e) => handleFilterChange("timestamp", e.target.value)}
-              className="font-normal border border-gray-300 rounded w-full"
-            >
-              <option value="">すべて</option>
-              {uniqueValues.timestamp.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </th>
-
-          {/* Size */}
-          <th className="border border-gray-300 p-2 text-left">
-            <div
-              onClick={() => requestSort("size")}
-              style={getHeaderStyle("size")}
-              className="text-lg cursor-pointer"
-            >
-              規格
-            </div>
-            <select
-              value={selectedFilters.size || ""}
-              onChange={(e) => handleFilterChange("size", e.target.value)}
-              className="font-normal border border-gray-300 rounded w-full"
-            >
-              <option value="">すべて</option>
-              {uniqueValues.size.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </th>
-
-          {/* Expired */}
-          <th className="border border-gray-300 p-2 text-left">
-            <div
-              onClick={() => requestSort("expired")}
-              style={getHeaderStyle("expired")}
-              className="text-lg cursor-pointer"
-            >
-              有効期限
-            </div>
-            <select
-              value={selectedFilters.expired || ""}
-              onChange={(e) => handleFilterChange("expired", e.target.value)}
-              className="font-normal border border-gray-300 rounded w-full"
-            >
-              <option value="">すべて</option>
-              {uniqueValues.expired.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </th>
-
-          {showLotNumber && (
-            <th className="border border-gray-300 p-2 text-left">
-              <div
-                onClick={() => requestSort("lotNumber")}
-                style={getHeaderStyle("lotNumber")}
-                className="text-lg cursor-pointer"
-              >
-                ロットナンバー
+    <div className="overflow-x-auto shadow rounded-lg">
+      <table className="min-w-full divide-y divide-gray-300 table-fixed">
+        <thead className="bg-gray-50">
+          <tr>
+            {/* ホルマリンKey 列 */}
+            <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+              <div onClick={() => requestSort("key")} style={getHeaderStyle("key")}>
+                ホルマリンKey
               </div>
               <select
-                value={selectedFilters.lotNumber || ""}
-                onChange={(e) => handleFilterChange("lotNumber", e.target.value)}
-                className="font-normal border border-gray-300 rounded w-full"
+                value={selectedFilters.key || ""}
+                onChange={(e) => handleFilterChange("key", e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
               >
                 <option value="">すべて</option>
-                {uniqueValues.lotNumber.map((value) => (
+                {uniqueValues.key.map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>
                 ))}
               </select>
             </th>
-          )}
-
-          {showHistoryButton && (
-            <th className="border border-gray-300 p-2 text-left">更新履歴</th>
-          )}
-        </tr>
-      </thead>
-      <tbody>
-        {sortedFormalinList.map((f) => (
-          <tr
-            key={f.id}
-            style={{ backgroundColor: "#fff" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f9f9f9";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#fff";
-            }}
-          >
-            <td className="border border-gray-300 p-2 whitespace-normal break-words">
-              {f.key}
-            </td>
-            <td className="border border-gray-300 p-2">{f.place}</td>
-            <td className="border border-gray-300 p-2">{f.status}</td>
-            <td className="border border-gray-300 p-2">
-              {f.timestamp
-                ? f.timestamp.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
-                : "--"}
-            </td>
-            <td className="border border-gray-300 p-2">{f.size}</td>
-            <td className="border border-gray-300 p-2">
-              {f.expired ? f.expired.toLocaleDateString("ja-JP") : "--"}
-            </td>
+            {/* Place 列 */}
+            <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+              <div
+                onClick={() => requestSort("place")}
+                style={getHeaderStyle("place")}
+              >
+                場所
+              </div>
+              <select
+                value={selectedFilters.place || ""}
+                onChange={(e) => handleFilterChange("place", e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+              >
+                <option value="">すべて</option>
+                {uniqueValues.place.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </th>
+            {/* Status 列 */}
+            <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+              <div
+                onClick={() => requestSort("status")}
+                style={getHeaderStyle("status")}
+              >
+                状態
+              </div>
+              <select
+                value={selectedFilters.status || ""}
+                onChange={(e) => handleFilterChange("status", e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+              >
+                <option value="">すべて</option>
+                {uniqueValues.status.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </th>
+            {/* Timestamp 列 */}
+            <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+              <div
+                onClick={() => requestSort("timestamp")}
+                style={getHeaderStyle("timestamp")}
+              >
+                最終更新日時
+              </div>
+              <select
+                value={selectedFilters.timestamp || ""}
+                onChange={(e) => handleFilterChange("timestamp", e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+              >
+                <option value="">すべて</option>
+                {uniqueValues.timestamp.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </th>
+            {/* Size 列 */}
+            <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+              <div
+                onClick={() => requestSort("size")}
+                style={getHeaderStyle("size")}
+              >
+                規格
+              </div>
+              <select
+                value={selectedFilters.size || ""}
+                onChange={(e) => handleFilterChange("size", e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+              >
+                <option value="">すべて</option>
+                {uniqueValues.size.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </th>
+            {/* Expired 列 */}
+            <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+              <div
+                onClick={() => requestSort("expired")}
+                style={getHeaderStyle("expired")}
+              >
+                有効期限
+              </div>
+              <select
+                value={selectedFilters.expired || ""}
+                onChange={(e) => handleFilterChange("expired", e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+              >
+                <option value="">すべて</option>
+                {uniqueValues.expired.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </th>
             {showLotNumber && (
-              <td className="border border-gray-300 p-2">{f.lotNumber}</td>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                <div
+                  onClick={() => requestSort("lotNumber")}
+                  style={getHeaderStyle("lotNumber")}
+                >
+                  ロットナンバー
+                </div>
+                <select
+                  value={selectedFilters.lotNumber || ""}
+                  onChange={(e) => handleFilterChange("lotNumber", e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                >
+                  <option value="">すべて</option>
+                  {uniqueValues.lotNumber.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </th>
             )}
             {showHistoryButton && (
-              <td className="border border-gray-300 p-2">
-                {onHistoryClick && (
-                  <button
-                    className="text-blue-500 underline"
-                    onClick={() => onHistoryClick(f.key)}
-                  >
-                    履歴
-                  </button>
-                )}
-              </td>
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                更新履歴
+              </th>
             )}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {sortedFormalinList.map((f) => (
+            <tr
+              key={f.id}
+              className="hover:bg-gray-50 transition-colors"
+            >
+              <td className="px-4 py-2 break-words">{f.key}</td>
+              <td className="px-4 py-2">{f.place}</td>
+              <td className="px-4 py-2">{f.status}</td>
+              <td className="px-4 py-2">
+                {f.timestamp
+                  ? f.timestamp.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
+                  : "--"}
+              </td>
+              <td className="px-4 py-2">{f.size}</td>
+              <td className={`px-4 py-2 ${getExpiredStyle(f.expired)}`}>
+                {f.expired ? f.expired.toLocaleDateString("ja-JP") : "--"}
+              </td>
+              {showLotNumber && (
+                <td className="px-4 py-2">{f.lotNumber}</td>
+              )}
+              {showHistoryButton && (
+                <td className="px-4 py-2">
+                  {onHistoryClick && (
+                    <button
+                      className="text-blue-500 underline hover:text-blue-700"
+                      onClick={() => onHistoryClick(f.key)}
+                    >
+                      履歴
+                    </button>
+                  )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

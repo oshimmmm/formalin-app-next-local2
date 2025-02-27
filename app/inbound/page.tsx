@@ -30,39 +30,46 @@ export default function InboundClient() {
       const target = e.target as HTMLInputElement;
       const code = target.value.trim();
       if (!code) return;
-
-      const parsed = parseFormalinCode(code);
-      if (!parsed) {
-        setErrorMessage("無効なコードです。");
-        target.value = "";
-        return;
-      }
-
-      const { serialNumber, size, expirationDate, lotNumber } = parsed;
-
-      // 既存データがあるかどうか判定
-      const existing = formalinList.find((f) => f.key === serialNumber);
-      if (existing) {
-        setErrorMessage("このホルマリンは既に入庫済です。");
-      } else {
-        // 新規データを追加
-        await createFormalin({
-          key: serialNumber,
-          place: "病理",
-          status: "入庫済み",
-          timestamp: new Date(),
-          size: size,
-          expired: expirationDate,
-          lotNumber: lotNumber,
-          // 履歴用
-          updatedBy: username,
-          updatedAt: new Date(),
-          oldStatus: "",
-          newStatus: "入庫済み",
-          oldPlace: "",
-          newPlace: "病理",
-        });
+      try {
+        const parsed = parseFormalinCode(code);
+        if (!parsed) {
+          setErrorMessage("無効なコードです。");
+          target.value = "";
+          return;
+        }
+        // 正常時はエラーメッセージをクリアし、シリアルナンバーをセット
         setErrorMessage("");
+        const { serialNumber, size, expirationDate, lotNumber } = parsed;
+        // 既存データがあるかどうか判定
+        const existing = formalinList.find((f) => f.key === serialNumber);
+        if (existing) {
+          setErrorMessage("このホルマリンは既に入庫済です。");
+        } else {
+          // 新規データを追加
+          await createFormalin({
+            key: serialNumber,
+            place: "病理在庫",
+            status: "入庫済み",
+            timestamp: new Date(),
+            size: size,
+            expired: expirationDate,
+            lotNumber: lotNumber,
+            // 履歴用
+            updatedBy: username,
+            updatedAt: new Date(),
+            oldStatus: "",
+            newStatus: "入庫済み",
+            oldPlace: "",
+            newPlace: "病理在庫",
+          });
+          setErrorMessage("");
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          setErrorMessage(error.message);
+        } else {
+          setErrorMessage("不明なエラーが発生しました");
+        }
       }
       target.value = "";
     }
@@ -71,7 +78,6 @@ export default function InboundClient() {
   return (
     <div>
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">入庫する</h1>
-
       <input
         type="text"
         ref={inputRef}
@@ -79,9 +85,7 @@ export default function InboundClient() {
         placeholder="二次元バーコードを読み込んでください"
         className="text-2xl border border-gray-300 rounded p-2 w-1/3 ml-10"
       />
-
       {errorMessage && <p className="text-red-500 ml-10">{errorMessage}</p>}
-
       <h2 className="text-xl mx-10 mt-8 mb-2">入庫済みホルマリン一覧</h2>
       <div className="ml-10">
         <FormalinTable formalinList={ingressedList} />
