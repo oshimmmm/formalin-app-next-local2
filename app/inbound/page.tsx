@@ -86,7 +86,11 @@ export default function InboundClient() {
         className="text-2xl border border-gray-300 rounded p-2 w-1/3 ml-10"
       />
       {errorMessage && <p className="text-red-500 ml-10">{errorMessage}</p>}
-      <h2 className="text-xl mx-10 mt-8 mb-2">入庫済みホルマリン一覧</h2>
+      <h2 className="text-xl mx-10 mt-8 mb-2">
+        入庫済みホルマリン一覧
+        <span className="ml-2 text-gray-600">({ingressedList.length}個)</span>
+      </h2>
+      
       <div className="ml-10">
         <FormalinTable formalinList={ingressedList} />
       </div>
