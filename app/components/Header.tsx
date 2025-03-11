@@ -32,13 +32,13 @@ export default function Header() {
     { path: "/inbound", label: "入庫" },
     { path: "/outbound", label: "出庫" },
     { path: "/submission", label: "提出" },
-    { path: "/list", label: "試薬詳細一覧" },
+    { path: "/list", label: "ホルマリン一覧" },
   ];
 
   // 管理者ユーザーのみ表示したいリンクを追加
   const adminLinks = [
     ...commonLinks,
-    { path: "/admin", label: "試薬情報編集" },
+    { path: "/admin", label: "ホルマリン編集" },
     { path: "/user", label: "ユーザー管理" },
     { path: "/backup", label: "バックアップ" },
     { path: "/archive", label: "アーカイブ" },

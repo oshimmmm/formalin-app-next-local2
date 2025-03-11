@@ -7,8 +7,15 @@ export interface ParsedFormalinCode {
     expirationDate: Date;
     size: string;
   }
+
+  interface ParseOptions {
+    checkExpiration?: boolean; // trueなら期限チェック、falseならスキップ
+  }
   
-  export const parseFormalinCode = (code: string): ParsedFormalinCode | null => {
+  export const parseFormalinCode = (
+    code: string,
+    options?: ParseOptions
+  ): ParsedFormalinCode | null => {
     if (code.length !== 32) {
       return null;
     }
@@ -27,6 +34,16 @@ export interface ParsedFormalinCode {
     const expMonth = parseInt(expiration.substring(2, 4), 10); // 月
     const expDay = parseInt(expiration.substring(4, 6), 10); // 日
     const expirationDate = new Date(Date.UTC(expYear, expMonth - 1, expDay)); // 月は0始まり
+
+    // checkExpiration オプションが未指定または true の場合、期限チェックを行う
+    if (options?.checkExpiration !== false) {
+      const jstNow = new Date(
+        new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
+      );
+      if (expirationDate < jstNow) {
+        throw new Error("有効期限が過ぎています");
+      }
+    }
   
     // 規格
     const productCode = code.substring(12, 25); // 1文字目から16文字

@@ -96,7 +96,7 @@ export default function FormalinTable({
     });
   });
 
-  // ソートを適用 (useMemoで最適化)
+  // ソート適用 (useMemoで最適化)
   const sortedFormalinList = useMemo(() => {
     if (sortConfig === null) {
       return filteredFormalinList;
@@ -126,7 +126,7 @@ export default function FormalinTable({
     });
   }, [filteredFormalinList, sortConfig]);
 
-  // ソート設定を変更
+  // ソート設定変更
   const requestSort = (key: SortableKey) => {
     let direction: "asc" | "desc" = "asc";
     if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
@@ -135,13 +135,32 @@ export default function FormalinTable({
     setSortConfig({ key, direction });
   };
 
-  // ソート中の列にスタイルを当てる
+  // ヘッダー用スタイル
   const getHeaderStyle = (columnKey: keyof Formalin) => {
     return {
       cursor: "pointer",
       backgroundColor:
         sortConfig && sortConfig.key === columnKey ? "#e0e0e0" : "#f2f2f2",
     };
+  };
+
+  // 現在の日本時間を取得するヘルパー関数
+  const getJSTNow = (): Date => {
+    return new Date(new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }));
+  };
+
+  // 有効期限に応じた背景色を返す関数
+  const getExpiredStyle = (expired: Date | null): string => {
+    if (!expired) return "";
+    const now = getJSTNow();
+    if (expired.getTime() < now.getTime()) {
+      return "bg-red-200";
+    }
+    const oneMonthInMs = 30 * 24 * 60 * 60 * 1000;
+    if (expired.getTime() - now.getTime() <= oneMonthInMs) {
+      return "bg-yellow-200";
+    }
+    return "";
   };
 
   return (

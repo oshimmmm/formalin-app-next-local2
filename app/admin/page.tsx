@@ -20,7 +20,9 @@ export default function AdminPage() {
   const username = session?.user?.username || "anonymous";
 
   // 選択可能な出庫先
-  const places = ["病理", "内視鏡", "外科", "内科", "病棟"];
+  const places = ["病理在庫","病理", "内視鏡", "外科", "内科", "病棟"];
+
+  const statuses = ["入庫済み","出庫済み","提出済み"];
 
   // 初回マウント時などに formalinList をローカルstate posts に反映
   useEffect(() => {
@@ -110,12 +112,12 @@ export default function AdminPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">管理者専用ページ</h1>
+      <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">ホルマリン状態編集ページ</h1>
 
       <div className="ml-10 mb-4">
         <input
           type="text"
-          placeholder="バーコードを読み込んでください"
+          placeholder="バーコードを読ませると検索できます"
           onKeyDown={handleBarcodeInput}
           className="border border-gray-300 rounded p-2 w-1/4"
         />
@@ -162,13 +164,28 @@ export default function AdminPage() {
               </td>
 
               <td className="border border-gray-300 p-2.5">
+                <select
+                  value={post.status}
+                  className="w-full p-1 border border-gray-300 rounded"
+                  onChange={(e) => handleStatusChange(post.id, e.target.value)}
+                >
+                  {statuses.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </td>
+
+              {/* 任意の文字を入れたいならこっち
+              <td className="border border-gray-300 p-2.5">
                 <input
                   type="text"
                   value={post.status}
                   className="w-full p-1 border border-gray-300 rounded"
                   onChange={(e) => handleStatusChange(post.id, e.target.value)}
                 />
-              </td>
+              </td> */}
 
               <td className="border border-gray-300 p-2.5">
                 <button

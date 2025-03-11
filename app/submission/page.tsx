@@ -66,44 +66,51 @@ export default function SubmissionPage() {
       target.value = "";
 
       if (!code) return;
-
-      const parsed = parseFormalinCode(code);
-      if (!parsed) {
-        setErrorMessage("無効なコードです。");
-        return;
-      }
-
-      const { serialNumber, boxNumber, lotNumber } = parsed;
-
-      // 既存の formalin 検索
-      const existingFormalin = formalinList.find((f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber);
-
-      if (!existingFormalin) {
-        setErrorMessage("ホルマリンが見つかりません。入庫してください。");
-        return;
-      }
-
-      if (existingFormalin.status === "出庫済み") {
-        // 既存→  "提出済み" に更新
-        try {
-          await editFormalin(existingFormalin.id, {
-            key: serialNumber,
-            status: "提出済み",
-            timestamp: new Date(), // 現在時刻
-            updatedBy: username,
-            updatedAt: new Date(),
-            oldStatus: existingFormalin.status,
-            newStatus: "提出済み",
-            oldPlace: existingFormalin.place,
-            newPlace: existingFormalin.place, // 場所は変更しない想定？
-          });
-          setErrorMessage("");
-        } catch (err) {
-          console.error(err);
-          setErrorMessage("提出処理中にエラーが発生しました。");
+      try {
+        const parsed = parseFormalinCode(code);
+        if (!parsed) {
+          setErrorMessage("無効なコードです。");
+          return;
         }
-      } else {
-        setErrorMessage("このホルマリンは出庫されていません。");
+        // 正常ならエラーメッセージをクリア
+        setErrorMessage("");
+        const { serialNumber, boxNumber, lotNumber } = parsed;
+        // 既存の formalin を検索
+        const existingFormalin = formalinList.find((f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber);
+        if (existingFormalin) {
+          if (existingFormalin.status === "出庫済み") {
+            try {
+              await editFormalin(existingFormalin.id, {
+                key: serialNumber,
+                status: "提出済み",
+                timestamp: new Date(), // 現在時刻
+                updatedBy: username,
+                updatedAt: new Date(),
+                oldStatus: existingFormalin.status,
+                newStatus: "提出済み",
+                oldPlace: existingFormalin.place,
+                newPlace: existingFormalin.place, // 場所は変更しない想定
+              });
+              setErrorMessage("");
+            } catch (err) {
+              if (err instanceof Error) {
+                setErrorMessage(err.message);
+              } else {
+                setErrorMessage("提出処理中に不明なエラーが発生しました。");
+              }
+            }
+          } else {
+            setErrorMessage("このホルマリンは出庫されていません。");
+          }
+        } else {
+          setErrorMessage("ホルマリンが見つかりません。入庫してください。");
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          setErrorMessage(error.message);
+        } else {
+          setErrorMessage("不明なエラーが発生しました。");
+        }
       }
     }
   };

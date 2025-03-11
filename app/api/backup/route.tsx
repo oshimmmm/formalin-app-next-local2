@@ -3,13 +3,15 @@ import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import ExcelJS from "exceljs";
 
-// ヘルパー関数: 値が有効な Date オブジェクトか、文字列の場合は Date に変換して ISO 文字列を返す
-function toISO(date: unknown): string {
+// ヘルパー関数: 有効な Date オブジェクトまたは文字列から日本時間文字列を返す
+function toJST(date: unknown): string {
   if (date instanceof Date && !isNaN(date.getTime())) {
-    return date.toISOString();
+    return date.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
   } else if (typeof date === "string") {
     const d = new Date(date);
-    return isNaN(d.getTime()) ? "" : d.toISOString();
+    return isNaN(d.getTime())
+      ? ""
+      : d.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
   }
   return "";
 }
@@ -62,18 +64,17 @@ export async function POST(request: Request) {
     const workbook = new ExcelJS.Workbook();
 
     // Formalinシート作成
-    const formalinSheet = workbook.addWorksheet("Formalin");
+    const formalinSheet = workbook.addWorksheet("ホルマリン一覧");
     formalinSheet.columns = [
       { header: "ID", key: "id", width: 10 },
-      { header: "Key", key: "key", width: 15 },
-      { header: "Place", key: "place", width: 15 },
-      { header: "Status", key: "status", width: 15 },
-      { header: "Expired", key: "expired", width: 20 },
-      { header: "Timestamp", key: "timestamp", width: 20 },
-      { header: "Size", key: "size", width: 10 },
-      { header: "Lot Number", key: "lot_number", width: 15 },
-      { header: "CreatedAt", key: "createdAt", width: 20 },
-      { header: "UpdatedAt", key: "updatedAt", width: 20 },
+      { header: "ホルマリンKey", key: "key", width: 15 },
+      { header: "出庫先", key: "place", width: 15 },
+      { header: "ステータス", key: "status", width: 15 },
+      { header: "有効期限", key: "expired", width: 20 },
+      { header: "最終更新日", key: "timestamp", width: 20 },
+      { header: "規格", key: "size", width: 10 },
+      { header: "ロットナンバー", key: "lot_number", width: 15 },
+      { header: "入庫日", key: "createdAt", width: 20 },
     ];
 
     formalinData.forEach((record) => {
@@ -82,12 +83,11 @@ export async function POST(request: Request) {
         key: record.key,
         place: record.place,
         status: record.status,
-        expired: toISO(record.expired),
-        timestamp: toISO(record.timestamp),
+        expired: toJST(record.expired),
+        timestamp: toJST(record.timestamp),
         size: record.size,
         lot_number: record.lot_number,
-        createdAt: toISO(record.createdAt),
-        updatedAt: toISO(record.updatedAt),
+        createdAt: toJST(record.createdAt),
       });
     });
 
@@ -95,15 +95,13 @@ export async function POST(request: Request) {
     const historySheet = workbook.addWorksheet("履歴");
     historySheet.columns = [
       { header: "ID", key: "id", width: 10 },
-      { header: "Key", key: "key", width: 15 },
-      { header: "Updated By", key: "updated_by", width: 15 },
-      { header: "Updated At", key: "updated_at", width: 20 },
-      { header: "Old Status", key: "old_status", width: 15 },
-      { header: "New Status", key: "new_status", width: 15 },
-      { header: "Old Place", key: "old_place", width: 15 },
-      { header: "New Place", key: "new_place", width: 15 },
-      { header: "CreatedAt", key: "createdAt", width: 20 },
-      { header: "UpdatedAt (Auto)", key: "updatedAtAuto", width: 20 },
+      { header: "ホルマリンKey", key: "key", width: 15 },
+      { header: "更新者", key: "updated_by", width: 10 },
+      { header: "更新日", key: "updated_at", width: 15 },
+      { header: "変更前ステータス", key: "old_status", width: 20 },
+      { header: "変更後ステータス", key: "new_status", width: 20 },
+      { header: "変更前出庫先", key: "old_place", width: 15 },
+      { header: "変更後出庫先", key: "new_place", width: 15 },
     ];
 
     historyData.forEach((record) => {
@@ -111,13 +109,11 @@ export async function POST(request: Request) {
         id: record.id,
         key: record.key,
         updated_by: record.updated_by,
-        updated_at: toISO(record.updated_at),
+        updated_at: toJST(record.updated_at),
         old_status: record.old_status,
         new_status: record.new_status,
         old_place: record.old_place,
         new_place: record.new_place,
-        createdAt: toISO(record.createdAt),
-        updatedAtAuto: toISO(record.updatedAt),
       });
     });
 
