@@ -321,7 +321,7 @@ export default function FormalinTable({
                   : "--"}
               </td>
               <td className="px-4 py-2">{f.size}</td>
-              <td className="px-4 py-2">
+              <td className={`px-4 py-2 ${getExpiredStyle(f.expired)}`}>
                 {f.expired ? f.expired.toLocaleDateString("ja-JP") : "--"}
               </td>
               {showLotNumber && (
