@@ -35,6 +35,7 @@ export async function POST(req: Request) {
       size,
       expired,
       lotNumber,
+      boxNumber,
       updatedBy,
       updatedAt,
       oldStatus,
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
         size: size ?? null,
         expired: expired ? new Date(expired) : null,
         lot_number: lotNumber ?? null,
+        box_number: boxNumber ?? null,
       },
     });
 

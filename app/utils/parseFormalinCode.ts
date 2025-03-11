@@ -1,6 +1,7 @@
 // utils/parseFormalinCode.ts
 
 export interface ParsedFormalinCode {
+    boxNumber: string;
     serialNumber: string;
     lotNumber: string;
     expirationDate: Date;
@@ -8,12 +9,14 @@ export interface ParsedFormalinCode {
   }
   
   export const parseFormalinCode = (code: string): ParsedFormalinCode | null => {
-    if (code.length !== 29) {
+    if (code.length !== 32) {
       return null;
     }
+
+    const boxNumber = code.substring(25, 28);
   
     // シリアルナンバー：コード内の位置を特定して抽出
-    const serialNumber = code.substring(25, 29); // 34文字目から14文字
+    const serialNumber = code.substring(28, 32); // 34文字目から14文字
   
     // ロットナンバー
     const lotNumber = code.substring(0, 6); // 26文字目から6文字
@@ -30,15 +33,16 @@ export interface ParsedFormalinCode {
     let size = '';
     if (productCode === '4562160402859') {
       size = '7ml';
-    } else if (productCode === '4562160407892') {
+    } else if (productCode === '4571166329855') {
       size = '25ml';
-    } else  if (productCode === '4562160403580') {
+    } else  if (productCode === '4571166329862') {
       size = '30ml';
     } else {
       size = '不明';
     }
   
     return {
+      boxNumber,
       serialNumber,
       lotNumber,
       expirationDate,

@@ -16,18 +16,21 @@ datasource db {
 // -------------------- 
 model Formalin { 
 id Int @id @default(autoincrement()) 
-key String? @unique 
+key String? 
 place String? 
 status String? 
 expired DateTime? 
 timestamp DateTime? 
 size String? 
-lot_number String? 
+lot_number String?
+box_number String? 
 // 例: データ作成日時、更新日時を持たせる 
 createdAt DateTime @default(now()) 
 updatedAt DateTime @updatedAt 
 // Historyとの1対多関係 (Reagentが親) 
-histories History[] 
+histories History[]
+
+@@unique([lot_number, key, box_number]) // ここで複合ユニーク制約を設定
 } 
 // -------------------- 
 // 2) 履歴テーブル (History) 

@@ -27,6 +27,7 @@ interface CreateFormalinPayload {
   size?: string;
   expired?: Date;
   lotNumber?: string;
+  boxNumber?: string;
   // 履歴用
   updatedBy?: string;
   updatedAt?: Date;

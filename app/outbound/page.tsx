@@ -8,10 +8,8 @@ import { parseFormalinCode } from "../utils/parseFormalinCode";
 import { FormalinContext } from "../Providers/FormalinProvider";
 
 export default function OutboundPage() {
-  // 1) FormalinContext から formalinList, updateFormalinStatus を取得
+  // 1) FormalinContext から formalinList, updateFormalinStatus（ここでは editFormalin）を取得
   const { formalinList, editFormalin } = useContext(FormalinContext)!;
-  // あるいは「updateFormalinStatus」という命名なら provider側も合わせる
-  // ここでは "editFormalin" を使用
 
   // 2) NextAuth のセッションからユーザー名を取得
   const { data: session } = useSession();
@@ -40,7 +38,6 @@ export default function OutboundPage() {
       const target = e.target as HTMLInputElement;
       const code = target.value.trim();
       target.value = "";
-
       if (!code) return;
 
       // parseFormalinCodeでバーコードを解析
@@ -49,19 +46,20 @@ export default function OutboundPage() {
         setErrorMessage("無効なコードです。");
         return;
       }
-
+      const { serialNumber, boxNumber, lotNumber } = parsed;
       // 出庫先が空ならエラーメッセージ
       if (!selectedPlace) {
         setErrorMessage("出庫先を選択してください。");
         return;
       }
 
-      // 既存のホルマリンを検索
-      const { serialNumber } = parsed;
-      const existingFormalin = formalinList.find((f) => f.key === serialNumber);
+      // 既存のホルマリンを検索： key と lotNumber の両方で判定
+      const existingFormalin = formalinList.find(
+        (f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber
+      );
 
       if (existingFormalin) {
-        // 既存の場合、状態と場所を "出庫済み" + selectedPlace に更新
+        // 既存の場合、状態と場所を更新
         try {
           await editFormalin(existingFormalin.id, {
             key: serialNumber,
@@ -91,7 +89,6 @@ export default function OutboundPage() {
   return (
     <div>
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">出庫する</h1>
-
       <label htmlFor="place-select" className="text-2xl ml-10">
         出庫先を選択してください:{" "}
       </label>
@@ -108,20 +105,16 @@ export default function OutboundPage() {
         <option value="内科">内科</option>
         <option value="病棟">病棟</option>
       </select>
-
       <br />
       <br />
-
       <input
         type="text"
         ref={inputRef}
-        onKeyDown={handleScan}     // React 18以降は onKeyDown
+        onKeyDown={handleScan}
         placeholder="二次元バーコードを読み込んでください"
         className="text-2xl border border-gray-300 rounded p-2 w-1/3 ml-10"
       />
-
       {errorMessage && <p className="text-red-500 ml-10">{errorMessage}</p>}
-
       <h2 className="text-xl mx-10 mt-8 mb-2">出庫済みホルマリン一覧</h2>
       <div className="ml-10">
         <FormalinTable formalinList={egressedList} />

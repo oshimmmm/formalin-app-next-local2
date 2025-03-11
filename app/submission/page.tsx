@@ -73,10 +73,10 @@ export default function SubmissionPage() {
         return;
       }
 
-      const { serialNumber } = parsed;
+      const { serialNumber, boxNumber, lotNumber } = parsed;
 
       // 既存の formalin 検索
-      const existingFormalin = formalinList.find((f) => f.key === serialNumber);
+      const existingFormalin = formalinList.find((f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber);
 
       if (!existingFormalin) {
         setErrorMessage("ホルマリンが見つかりません。入庫してください。");
