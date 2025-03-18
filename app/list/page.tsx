@@ -3,66 +3,71 @@ import React, { useContext, useState, KeyboardEvent } from "react";
 import FormalinTable from "../components/FormalinTable";
 import Modal from "../components/Modal";
 import { parseFormalinCode } from "../utils/parseFormalinCode";
-import { HistoryEntry } from "../types/Formalin"; // 型をimport
+import { HistoryEntry } from "../types/Formalin";
 import { FormalinContext } from "../Providers/FormalinProvider";
 
 export default function ListPage() {
   const { formalinList } = useContext(FormalinContext)!;
 
-  const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null);
+  // searchUniqueId: "lotNumber - boxNumber - serialNumber" の形式の一意識別子
+  const [selectedHistoryKey, setSelectedHistoryKey] = useState<number | null>(null);
   const [searchCode, setSearchCode] = useState("");
-  const [searchSerialNumber, setSearchSerialNumber] = useState<string | null>(null);
+  const [searchUniqueId, setSearchUniqueId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Enter押下でバーコード解析
+  // バーコード入力処理
   const handleBarcodeInput = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       const code = (e.target as HTMLInputElement).value.trim();
       try {
+        // 期限チェックをスキップするオプションを付与
         const parsed = parseFormalinCode(code, { checkExpiration: false });
         if (parsed === null) {
-          // parseFormalinCode が null を返した場合
           setErrorMessage("このホルマリンはリストにありません。");
-          setSearchSerialNumber(null);
+          setSearchUniqueId(null);
         } else {
           setErrorMessage("");
-          setSearchSerialNumber(parsed.serialNumber);
+          // lotNumber, boxNumber, serialNumber の3つを組み合わせた一意識別子を作成
+          const uniqueId = `${parsed.lotNumber} - ${parsed.boxNumber} - ${parsed.serialNumber}`;
+          setSearchUniqueId(uniqueId);
         }
       } catch (error) {
         if (error instanceof Error) {
-          // parseFormalinCode でエラーがスローされた場合（例: 有効期限切れ）
           setErrorMessage(error.message);
         } else {
           setErrorMessage("不明なエラーが発生しました");
         }
-        setSearchSerialNumber(null);
+        setSearchUniqueId(null);
       }
     }
   };
 
-  // serialNumber があればそれに合致するものだけフィルタ
-  const filteredList = searchSerialNumber
-    ? formalinList.filter((f) => f.key === searchSerialNumber)
+  // 検索窓用
+  // searchUniqueId がセットされている場合、その組み合わせに合致するものだけフィルタリング
+  const filteredList = searchUniqueId
+    ? formalinList.filter(
+        (f) => `${f.lotNumber} - ${f.boxNumber} - ${f.key}` === searchUniqueId
+      )
     : formalinList;
 
-  // 履歴ボタン
-  const handleHistoryClick = (key: string) => {
+  
+    // 履歴ボタン
+  const handleHistoryClick = (key: number) => {
     setSelectedHistoryKey(key);
   };
 
+  // データベースのHistoryテーブルにlot_numberとbox_NumberをINSERTしていないのでsearchUniqueIdを使って該当のHistoryを取得できない。
+  // そのため、selectedHistoryKeyを使ってFormalinのidを取得して、Formalinのhistoriesを取得している。
   // 選択されたキーで formalin を探す
   const selectedFormalin = selectedHistoryKey
-    ? formalinList.find((f) => f.key === selectedHistoryKey)
+    ? formalinList.find((f) => f.id === selectedHistoryKey)
     : null;
-
-  // formalin の履歴配列 (HistoryData[])
   const history: HistoryEntry[] = selectedFormalin?.histories ?? [];
 
   return (
     <div>
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">ホルマリン一覧ページ</h1>
       <div className="ml-10">
-        {/* input と button を同じ flex コンテナにまとめる */}
         <div className="flex items-center space-x-2 hide-on-print mb-2">
           <input
             type="text"
@@ -80,9 +85,8 @@ export default function ListPage() {
           </button>
         </div>
   
-        {/* エラーメッセージがある場合のみ表示 */}
         {errorMessage && <p className="text-red-500 text-xl">{errorMessage}</p>}
-
+  
         <FormalinTable
           formalinList={filteredList}
           showLotNumber={true}
@@ -90,11 +94,11 @@ export default function ListPage() {
           onHistoryClick={handleHistoryClick}
         />
       </div>
-
+  
       {/* 履歴モーダル */}
       {selectedHistoryKey && (
         <Modal onClose={() => setSelectedHistoryKey(null)}>
-          <h2 className="text-xl mb-4">更新履歴: {selectedHistoryKey}</h2>
+          <h2 className="text-xl mb-4">更新履歴: {selectedFormalin ? `${selectedFormalin.lotNumber} - ${selectedFormalin.boxNumber} - ${selectedFormalin.key}` : ""}</h2>
           {(() => {
             if (history.length === 0) {
               return <p>履歴はありません</p>;

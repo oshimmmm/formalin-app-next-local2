@@ -1,3 +1,4 @@
+// app/admin/page.tsx
 "use client";
 
 import React, { useEffect, useState, useContext, KeyboardEvent } from "react";
@@ -7,107 +8,104 @@ import { Formalin } from "../types/Formalin";
 import { FormalinContext } from "../Providers/FormalinProvider";
 
 export default function AdminPage() {
-  // 1) FormalinContext からメソッドやデータを取得
   const { formalinList, removeFormalin, editFormalin } = useContext(FormalinContext)!;
-
-  // 2) ローカル state
   const [posts, setPosts] = useState<Formalin[]>([]);
-  const [serialNumber, setSerialNumber] = useState<string | null>(null);
+  const [uniqueId, setUniqueId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
 
-  // 3) ログインユーザー名を NextAuth セッションから取得
   const { data: session } = useSession();
   const username = session?.user?.username || "anonymous";
 
-  // 選択可能な出庫先
-  const places = ["病理在庫","病理", "内視鏡", "外科", "内科", "病棟"];
+  // 例：選択可能な出庫先とステータス
+  const places = ["病理在庫", "病理", "内視鏡", "外科", "内科", "病棟"];
+  const statuses = ["入庫済み", "出庫済み", "提出済み"];
 
-  const statuses = ["入庫済み","出庫済み","提出済み"];
-
-  // 初回マウント時などに formalinList をローカルstate posts に反映
   useEffect(() => {
     setPosts(formalinList);
   }, [formalinList]);
 
-  // バーコード読取 → parseFormalinCode
+  // バーコード読取
   const handleBarcodeInput = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       const code = (e.target as HTMLInputElement).value.trim();
-      const parsed = parseFormalinCode(code);
-
-      if (parsed) {
-        setErrorMessage("");
-        setSerialNumber(parsed.serialNumber);
-      } else {
-        setErrorMessage("このホルマリンはリストにありません。");
-        setSerialNumber(null);
+      try {
+        const parsed = parseFormalinCode(code);
+        if (parsed) {
+          setErrorMessage("");
+          // 3つの値を組み合わせた一意の識別子を作成
+          const id = `${parsed.lotNumber} - ${parsed.boxNumber} - ${parsed.serialNumber}`;
+          setUniqueId(id);
+        } else {
+          setErrorMessage("このホルマリンはリストにありません。");
+          setUniqueId(null);
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          setErrorMessage(error.message);
+        } else {
+          setErrorMessage("不明なエラーが発生しました。");
+        }
+        setUniqueId(null);
       }
     }
   };
 
-  // serialNumber があれば、それに合致する投稿だけ表示
-  const filteredPosts = serialNumber
-    ? posts.filter((post) => post.key === serialNumber)
+  // uniqueId がセットされていれば、その組み合わせに合致する投稿だけ表示
+  const filteredPosts = uniqueId
+    ? posts.filter(
+        (post) =>
+          `${post.lotNumber} - ${post.boxNumber} - ${post.key}` === uniqueId
+      )
     : posts;
 
-  // 削除ボタン押下 → removeFormalin呼び出し
   const handleDelete = async (id: number) => {
     if (window.confirm("本当に削除しますか？")) {
       await removeFormalin(id);
-      // Context側がDBを再取得し formalinListが更新 → useEffect で setPosts()に反映される
     }
   };
 
-  // place変更時、ローカルstateを更新
   const handlePlaceChange = (id: number, newPlace: string) => {
     setPosts((prev) =>
       prev.map((post) => (post.id === id ? { ...post, place: newPlace } : post))
     );
   };
 
-  // status変更時、ローカルstateを更新
   const handleStatusChange = (id: number, newStatus: string) => {
     setPosts((prev) =>
       prev.map((post) => (post.id === id ? { ...post, status: newStatus } : post))
     );
   };
 
-  // 更新ボタン押下 → DB更新
   const handleUpdateData = async (id: number) => {
     const targetPost = posts.find((p) => p.id === id);
     if (!targetPost) return;
+    if (!window.confirm("本当に更新しますか？")) return;
 
-    if (!window.confirm("本当に更新しますか？")) {
-      return;
-    }
-
-    // 更新前の値（旧値）をグローバルの formalinList から取得
     const oldRecord = formalinList.find((p) => p.id === id);
-
-    // タイムスタンプ
     const now = new Date();
-    // UTC扱いかどうかは要件に合わせて
     const timeDate = new Date(
-      Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() - 9, now.getMinutes(), now.getSeconds())
+      Date.UTC(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        now.getHours() - 9,
+        now.getMinutes(),
+        now.getSeconds()
+      )
     );
 
-    // Context側の updateFormalin でDB更新
-    await editFormalin(
-      id,
-      {
-        key: targetPost.key,
-        place: targetPost.place,
-        status: targetPost.status,
-        timestamp: timeDate,
-        updatedBy: username,
-        updatedAt: timeDate,
-        oldPlace: oldRecord?.place || "",
-        newPlace: targetPost.place,
-        oldStatus: oldRecord?.status || "",
-        newStatus: targetPost.status,
-      }
-    );
-    // DB更新後、Contextが再フェッチ → useEffect => setPosts(formalinList)
+    await editFormalin(id, {
+      key: targetPost.key,
+      place: targetPost.place,
+      status: targetPost.status,
+      timestamp: timeDate,
+      updatedBy: username,
+      updatedAt: timeDate,
+      oldPlace: oldRecord?.place || "",
+      newPlace: targetPost.place,
+      oldStatus: oldRecord?.status || "",
+      newStatus: targetPost.status,
+    });
   };
 
   return (
@@ -127,7 +125,7 @@ export default function AdminPage() {
       <table className="w-4/5 text-lg ml-10">
         <thead>
           <tr>
-            <th className="border border-gray-300 p-2.5 text-left">Key</th>
+            <th className="border border-gray-300 p-2.5 text-left">ホルマリンID</th>
             <th className="border border-gray-300 p-2.5 text-left">Place</th>
             <th className="border border-gray-300 p-2.5 text-left">Status</th>
             <th className="border border-gray-300 p-2.5 text-left">操作</th>
@@ -146,9 +144,8 @@ export default function AdminPage() {
               }}
             >
               <td className="border border-gray-300 p-2.5">
-                {post.key}
+                {`${post.lotNumber} - ${post.boxNumber} - ${post.key}`}
               </td>
-
               <td className="border border-gray-300 p-2.5">
                 <select
                   value={post.place}
@@ -162,31 +159,19 @@ export default function AdminPage() {
                   ))}
                 </select>
               </td>
-
               <td className="border border-gray-300 p-2.5">
                 <select
                   value={post.status}
-                  className="w-full p-1 border border-gray-300 rounded"
                   onChange={(e) => handleStatusChange(post.id, e.target.value)}
+                  className="w-full p-1 border border-gray-300 rounded"
                 >
-                  {statuses.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
+                  {statuses.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
                     </option>
                   ))}
                 </select>
               </td>
-
-              {/* 任意の文字を入れたいならこっち
-              <td className="border border-gray-300 p-2.5">
-                <input
-                  type="text"
-                  value={post.status}
-                  className="w-full p-1 border border-gray-300 rounded"
-                  onChange={(e) => handleStatusChange(post.id, e.target.value)}
-                />
-              </td> */}
-
               <td className="border border-gray-300 p-2.5">
                 <button
                   onClick={() => handleUpdateData(post.id)}

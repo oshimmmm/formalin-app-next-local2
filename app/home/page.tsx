@@ -2,7 +2,7 @@
 "use client";
 
 import { useContext, useState, KeyboardEvent } from "react";
-import { FormalinContext } from "../Providers/FormalinProvider"; 
+import { FormalinContext } from "../Providers/FormalinProvider";
 import FormalinTable from "../components/FormalinTable";
 import { parseFormalinCode } from "../utils/parseFormalinCode";
 
@@ -10,43 +10,48 @@ export default function HomePage() {
   // FormalinContext から formalinList を取得
   const { formalinList } = useContext(FormalinContext)!;
   const [searchCode, setSearchCode] = useState("");
-  const [searchSerialNumber, setSearchSerialNumber] = useState<string | null>(null);
+  // searchUniqueId は "lot_number - box_number - serialNumber" の形式
+  const [searchUniqueId, setSearchUniqueId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   const handleBarcodeInput = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       const code = (e.target as HTMLInputElement).value.trim();
       try {
+        // 有効期限チェックはスキップする
         const parsed = parseFormalinCode(code, { checkExpiration: false });
         if (parsed === null) {
-          // parseFormalinCode が null を返した場合
           setErrorMessage("このホルマリンはリストにありません。");
-          setSearchSerialNumber(null);
+          setSearchUniqueId(null);
         } else {
           setErrorMessage("");
-          setSearchSerialNumber(parsed.serialNumber);
+          // 3つの値を組み合わせた一意の識別子を作成
+          const uniqueId = `${parsed.lotNumber} - ${parsed.boxNumber} - ${parsed.serialNumber}`;
+          setSearchUniqueId(uniqueId);
         }
       } catch (error) {
         if (error instanceof Error) {
-          // parseFormalinCode でエラーがスローされた場合（例: 有効期限切れ）
           setErrorMessage(error.message);
         } else {
           setErrorMessage("不明なエラーが発生しました");
         }
-        setSearchSerialNumber(null);
+        setSearchUniqueId(null);
       }
     }
   };
 
-  // searchSerialNumberがセットされていれば、その key に合致するデータだけフィルタリング
-  const filteredList = searchSerialNumber
-    ? formalinList.filter((f) => f.key === searchSerialNumber)
+  // searchUniqueId が設定されていれば、その組み合わせに合致するレコードだけフィルタリング
+  const filteredList = searchUniqueId
+    ? formalinList.filter(
+        (f) =>
+          `${f.lotNumber} - ${f.boxNumber} - ${f.key}` === searchUniqueId
+      )
     : formalinList;
 
-  const filteredShukkoZumiList = filteredList.filter((f) => f.status === "出庫済み");
-
-  // "提出済み"のステータスを持つデータを表示しない
-  // const filteredListWithoutSubmitted = filteredList.filter((f) => f.status !== "提出済み");
+  // ここでは「出庫済み」のものだけ表示する例
+  const filteredShukkoZumiList = filteredList.filter(
+    (f) => f.status === "出庫済み"
+  );
 
   return (
     <div>
@@ -64,7 +69,6 @@ export default function HomePage() {
           className="border border-gray-300 rounded p-2 mb-2 w-1/4 hide-on-print"
         />
         {errorMessage && <p className="text-red-500">{errorMessage}</p>}
-
         <FormalinTable formalinList={filteredShukkoZumiList} />
       </div>
     </div>

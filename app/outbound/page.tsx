@@ -60,6 +60,8 @@ export default function OutboundPage() {
 
       if (existingFormalin) {
         // 既存の場合、状態と場所を更新
+        if (existingFormalin.status === "入庫済み") {
+
         try {
           await editFormalin(existingFormalin.id, {
             key: serialNumber,
@@ -79,9 +81,14 @@ export default function OutboundPage() {
           console.error(err);
           setErrorMessage("出庫処理中にエラーが発生しました。");
         }
+        
+        } else {
+          // 出庫済み → エラー表示
+          setErrorMessage("このホルマリンは既に出庫済みか、提出処理までされています。");
+        }
       } else {
         // 入庫されていない → エラー表示
-        setErrorMessage("入庫されていません。");
+        setErrorMessage("このホルマリンは入庫されていません。");
       }
     }
   };

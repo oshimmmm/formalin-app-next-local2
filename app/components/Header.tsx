@@ -32,6 +32,7 @@ export default function Header() {
     { path: "/inbound", label: "入庫" },
     { path: "/outbound", label: "出庫" },
     { path: "/submission", label: "提出" },
+    { path: "/reverse", label: "戻入" },
     { path: "/list", label: "ホルマリン一覧" },
   ];
 

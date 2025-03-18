@@ -24,7 +24,7 @@ services:
     build: .
     container_name: formalin-next-app-container
     env_file:
-      - .env
+      - .env.docker
     networks: 
       - formalin-network
     environment:

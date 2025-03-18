@@ -1,5 +1,4 @@
 // app/components/FormalinTable.tsx
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -18,7 +17,7 @@ interface FormalinTableProps {
   formalinList: Formalin[];
   showLotNumber?: boolean;      // ロットナンバーを表示するか
   showHistoryButton?: boolean;  // 履歴ボタンを表示するか
-  onHistoryClick?: (key: string) => void;
+  onHistoryClick?: (key: number) => void;
 }
 
 export default function FormalinTable({
@@ -60,10 +59,11 @@ export default function FormalinTable({
     key: uniqueKeyValues,
     place: Array.from(new Set(formalinList.map((item) => item.place))),
     status: Array.from(new Set(formalinList.map((item) => item.status))),
+    // "timestamp" は年月日で表示
     timestamp: Array.from(
       new Set(
         formalinList.map((item) =>
-          item.timestamp ? item.timestamp.toLocaleString() : "未設定"
+          item.timestamp ? item.timestamp.toLocaleDateString("ja-JP") : "未設定"
         )
       )
     ),
@@ -83,10 +83,12 @@ export default function FormalinTable({
     return Object.entries(selectedFilters).every(([key, value]) => {
       if (!value) return true;
       if (key === "timestamp") {
-        return item.timestamp?.toLocaleString() === value;
+        return item.timestamp
+          ? item.timestamp.toLocaleDateString("ja-JP") === value
+          : false;
       }
       if (key === "expired") {
-        return item.expired?.toLocaleString() === value;
+        return item.expired ? item.expired.toLocaleString() === value : false;
       }
       if (key === "key") {
         // keyフィールドは、lotNumber, boxNumber, key の組み合わせで比較する
@@ -106,6 +108,7 @@ export default function FormalinTable({
       let bValue: string | number | Date = b[sortConfig.key];
 
       if (sortConfig.key === "timestamp" && a.timestamp && b.timestamp) {
+        // 年月部分のみで比較するため、"YYYY-MM-01" に変換
         aValue = a.timestamp.getTime();
         bValue = b.timestamp.getTime();
       } else if (sortConfig.key === "expired" && a.expired && b.expired) {
@@ -126,7 +129,7 @@ export default function FormalinTable({
     });
   }, [filteredFormalinList, sortConfig]);
 
-  // ソート設定変更
+  // ソート設定を変更
   const requestSort = (key: SortableKey) => {
     let direction: "asc" | "desc" = "asc";
     if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
@@ -144,15 +147,10 @@ export default function FormalinTable({
     };
   };
 
-  // 現在の日本時間を取得するヘルパー関数
-  const getJSTNow = (): Date => {
-    return new Date(new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }));
-  };
-
   // 有効期限に応じた背景色を返す関数
   const getExpiredStyle = (expired: Date | null): string => {
     if (!expired) return "";
-    const now = getJSTNow();
+    const now = new Date(new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }));
     if (expired.getTime() < now.getTime()) {
       return "bg-red-200";
     }
@@ -332,7 +330,7 @@ export default function FormalinTable({
                   {onHistoryClick && (
                     <button
                       className="text-blue-500 underline hover:text-blue-700"
-                      onClick={() => onHistoryClick(f.key)}
+                      onClick={() => onHistoryClick(f.id)}
                     >
                       履歴
                     </button>
