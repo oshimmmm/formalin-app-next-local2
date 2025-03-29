@@ -9,7 +9,7 @@ COPY package*.json ./
 COPY prisma ./prisma
 
 # ここで .env をコピー
-COPY .env ./
+COPY .env.docker ./
 
 RUN npm install
 

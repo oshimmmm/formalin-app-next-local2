@@ -28,6 +28,7 @@ interface CreateFormalinPayload {
   expired?: Date;
   lotNumber?: string;
   boxNumber?: string;
+  productCode?: string
   // 履歴用
   updatedBy?: string;
   updatedAt?: Date;

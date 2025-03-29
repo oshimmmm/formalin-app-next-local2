@@ -57,6 +57,10 @@ export async function POST(request: Request) {
           lte: end,
         },
       },
+      include: {
+        formalin: true,  // これで各Historyに対して、関連するFormalinnの全フィールドが含まれる
+      },
+      orderBy: { id: "asc" },
     });
     console.log("History Data:", historyData); 
 
@@ -66,8 +70,7 @@ export async function POST(request: Request) {
     // Formalinシート作成
     const formalinSheet = workbook.addWorksheet("ホルマリン一覧");
     formalinSheet.columns = [
-      { header: "ID", key: "id", width: 10 },
-      { header: "ホルマリンKey", key: "key", width: 15 },
+      { header: "ホルマリンKey", key: "combinedKey", width: 25 },
       { header: "出庫先", key: "place", width: 15 },
       { header: "ステータス", key: "status", width: 15 },
       { header: "有効期限", key: "expired", width: 20 },
@@ -79,8 +82,7 @@ export async function POST(request: Request) {
 
     formalinData.forEach((record) => {
       formalinSheet.addRow({
-        id: record.id,
-        key: record.key,
+        combinedKey: `${record.lot_number} - ${record.box_number} - ${record.key}`,
         place: record.place,
         status: record.status,
         expired: toJST(record.expired),
@@ -94,8 +96,8 @@ export async function POST(request: Request) {
     // Historyシート作成
     const historySheet = workbook.addWorksheet("履歴");
     historySheet.columns = [
-      { header: "ID", key: "id", width: 10 },
-      { header: "ホルマリンKey", key: "key", width: 15 },
+      { header: "ホルマリンKey", key: "combinedKey", width: 15 },
+      { header: "規格", key: "size", width: 10 },
       { header: "更新者", key: "updated_by", width: 10 },
       { header: "更新日", key: "updated_at", width: 15 },
       { header: "変更前ステータス", key: "old_status", width: 20 },
@@ -106,8 +108,10 @@ export async function POST(request: Request) {
 
     historyData.forEach((record) => {
       historySheet.addRow({
-        id: record.id,
-        key: record.key,
+        combinedKey: record.formalin
+          ? `${record.formalin.lot_number} - ${record.formalin.box_number} - ${record.formalin.key}`
+          : "",
+        size: record.formalin ? record.formalin.size : "",
         updated_by: record.updated_by,
         updated_at: toJST(record.updated_at),
         old_status: record.old_status,

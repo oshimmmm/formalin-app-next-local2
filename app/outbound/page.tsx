@@ -46,7 +46,7 @@ export default function OutboundPage() {
         setErrorMessage("無効なコードです。");
         return;
       }
-      const { serialNumber, boxNumber, lotNumber } = parsed;
+      const { serialNumber, boxNumber, lotNumber, productCode } = parsed;
       // 出庫先が空ならエラーメッセージ
       if (!selectedPlace) {
         setErrorMessage("出庫先を選択してください。");
@@ -55,7 +55,7 @@ export default function OutboundPage() {
 
       // 既存のホルマリンを検索： key と lotNumber の両方で判定
       const existingFormalin = formalinList.find(
-        (f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber
+        (f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber && f.productCode === productCode
       );
 
       if (existingFormalin) {

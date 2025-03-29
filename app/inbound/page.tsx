@@ -39,7 +39,7 @@ export default function InboundClient() {
         }
         // 正常時はエラーメッセージをクリア
         setErrorMessage("");
-        const { serialNumber, boxNumber, size, expirationDate, lotNumber } = parsed;
+        const { serialNumber, boxNumber, size, expirationDate, lotNumber, productCode} = parsed;
   
         if (serialNumber === "0000") {
           // serialNumber が "0000" の場合、同じ size, expirationDate, lotNumber で
@@ -58,6 +58,7 @@ export default function InboundClient() {
                 expired: expirationDate,
                 lotNumber: lotNumber,
                 boxNumber,
+                productCode,
                 updatedBy: username,
                 updatedAt: new Date(),
                 oldStatus: "",
@@ -71,7 +72,7 @@ export default function InboundClient() {
         } else {
           // 通常の処理
           const existing = formalinList.find(
-            (f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber
+            (f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber && f.productCode === productCode
           );
           if (existing) {
             setErrorMessage("このホルマリンは既に入庫済です。");
@@ -85,6 +86,7 @@ export default function InboundClient() {
               expired: expirationDate,
               lotNumber: lotNumber,
               boxNumber,
+              productCode,
               updatedBy: username,
               updatedAt: new Date(),
               oldStatus: "",

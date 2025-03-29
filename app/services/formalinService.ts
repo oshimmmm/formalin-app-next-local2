@@ -21,6 +21,7 @@ export async function getFormalinData(): Promise<Formalin[]> {
       expired:   item.expired ? new Date(item.expired) : null,
       lotNumber: item.lot_number,
       boxNumber: item.box_number,
+      productCode: item.productCode,
       // ここで、item.histories を RawHistoryEntry[] としてマッピングし、camelCase に変換する
       histories: item.histories?.map((h: RawHistoryEntry) => ({
         history_id: h.history_id,
@@ -47,6 +48,7 @@ export async function addFormalinData(
     expired?: Date;
     lotNumber?: string;
     boxNumber?: string;
+    productCode?: string;
     // 履歴用
     updatedBy?: string;
     updatedAt?: Date;
@@ -80,6 +82,7 @@ export async function updateFormalinData(
     expired?: Date;
     lotNumber?: string;
     boxNumber?: string;
+    productCode?: string;
     // 履歴用
     updatedBy?: string;
     updatedAt?: Date;
