@@ -32,8 +32,8 @@ export default function AdminPage() {
         const parsed = parseFormalinCode(code);
         if (parsed) {
           setErrorMessage("");
-          // 3つの値を組み合わせた一意の識別子を作成
-          const id = `${parsed.lotNumber} - ${parsed.boxNumber} - ${parsed.serialNumber}`;
+          // lotNumber, boxNumber, serialNumber, productCode の4つを組み合わせた一意の識別子を作成
+          const id = `${parsed.lotNumber} - ${parsed.boxNumber} - ${parsed.serialNumber} - ${parsed.productCode}`;
           setUniqueId(id);
         } else {
           setErrorMessage("このホルマリンはリストにありません。");
@@ -54,7 +54,7 @@ export default function AdminPage() {
   const filteredPosts = uniqueId
     ? posts.filter(
         (post) =>
-          `${post.lotNumber} - ${post.boxNumber} - ${post.key}` === uniqueId
+          `${post.lotNumber} - ${post.boxNumber} - ${post.key} - ${post.productCode}` === uniqueId
       )
     : posts;
 
@@ -126,6 +126,7 @@ export default function AdminPage() {
         <thead>
           <tr>
             <th className="border border-gray-300 p-2.5 text-left">ホルマリンID</th>
+            <th className="border border-gray-300 p-2.5 text-left">規格</th> {/* 規格列を追加 */}
             <th className="border border-gray-300 p-2.5 text-left">Place</th>
             <th className="border border-gray-300 p-2.5 text-left">Status</th>
             <th className="border border-gray-300 p-2.5 text-left">操作</th>
@@ -146,6 +147,7 @@ export default function AdminPage() {
               <td className="border border-gray-300 p-2.5">
                 {`${post.lotNumber} - ${post.boxNumber} - ${post.key}`}
               </td>
+              <td className="border border-gray-300 p-2.5">{post.size}</td> {/* 規格データを表示 */}
               <td className="border border-gray-300 p-2.5">
                 <select
                   value={post.place}

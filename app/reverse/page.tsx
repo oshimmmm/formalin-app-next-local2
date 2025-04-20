@@ -57,9 +57,9 @@ export default function ReversePage() {
         }
         // 正常ならエラーメッセージをクリア
         setErrorMessage("");
-        const { serialNumber, boxNumber, lotNumber } = parsed;
+        const { serialNumber, boxNumber, lotNumber, productCode } = parsed;
         // 既存の formalin を検索
-        const existingFormalin = formalinList.find((f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber);
+        const existingFormalin = formalinList.find((f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber && f.productCode === productCode);
         if (existingFormalin) {
           if (existingFormalin.status === "出庫済み") {
             try {

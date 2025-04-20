@@ -10,7 +10,7 @@ export default function HomePage() {
   // FormalinContext から formalinList を取得
   const { formalinList } = useContext(FormalinContext)!;
   const [searchCode, setSearchCode] = useState("");
-  // searchUniqueId は "lot_number - box_number - serialNumber" の形式
+  // searchUniqueId は "lot_number - box_number - serialNumber - productCode" の形式
   const [searchUniqueId, setSearchUniqueId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -25,8 +25,8 @@ export default function HomePage() {
           setSearchUniqueId(null);
         } else {
           setErrorMessage("");
-          // 3つの値を組み合わせた一意の識別子を作成
-          const uniqueId = `${parsed.lotNumber} - ${parsed.boxNumber} - ${parsed.serialNumber}`;
+          // lotNumber, boxNumber, serialNumber, productCode の4つを組み合わせた一意の識別子を作成
+          const uniqueId = `${parsed.lotNumber} - ${parsed.boxNumber} - ${parsed.serialNumber} - ${parsed.productCode}`;
           setSearchUniqueId(uniqueId);
         }
       } catch (error) {
@@ -44,7 +44,7 @@ export default function HomePage() {
   const filteredList = searchUniqueId
     ? formalinList.filter(
         (f) =>
-          `${f.lotNumber} - ${f.boxNumber} - ${f.key}` === searchUniqueId
+          `${f.lotNumber} - ${f.boxNumber} - ${f.key} - ${f.productCode}` === searchUniqueId
       )
     : formalinList;
 

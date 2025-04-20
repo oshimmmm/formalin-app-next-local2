@@ -27,8 +27,8 @@ export default function ListPage() {
           setSearchUniqueId(null);
         } else {
           setErrorMessage("");
-          // lotNumber, boxNumber, serialNumber の3つを組み合わせた一意識別子を作成
-          const uniqueId = `${parsed.lotNumber} - ${parsed.boxNumber} - ${parsed.serialNumber}`;
+          // lotNumber, boxNumber, serialNumber, productCode の4つを組み合わせた一意識別子を作成
+          const uniqueId = `${parsed.lotNumber} - ${parsed.boxNumber} - ${parsed.serialNumber} - ${parsed.productCode}`;
           setSearchUniqueId(uniqueId);
         }
       } catch (error) {
@@ -46,7 +46,7 @@ export default function ListPage() {
   // searchUniqueId がセットされている場合、その組み合わせに合致するものだけフィルタリング
   const filteredList = searchUniqueId
     ? formalinList.filter(
-        (f) => `${f.lotNumber} - ${f.boxNumber} - ${f.key}` === searchUniqueId
+        (f) => `${f.lotNumber} - ${f.boxNumber} - ${f.key} - ${f.productCode}` === searchUniqueId
       )
     : formalinList;
 
