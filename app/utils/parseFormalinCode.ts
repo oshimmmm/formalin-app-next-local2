@@ -55,11 +55,13 @@ export interface ParsedFormalinCode {
       size = '25ml中性緩衝';
     } else  if (productCode === '4580161080616') {
       size = '25ml中性緩衝';
+    } else  if (productCode === '4580161091521') {
+      size = '25ml中性緩衝';
     } else  if (productCode === '4580161080609') {
       size = '25ml';
     } else  if (productCode === '4580161080623') {
       size = '25ml';
-    } else  if (productCode === '4571166329862') {
+    } else  if (productCode === '4580161081859') {
       size = '30ml';
     } else {
       size = '不明';
