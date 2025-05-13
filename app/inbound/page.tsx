@@ -42,12 +42,37 @@ export default function InboundClient() {
         const { serialNumber, boxNumber, size, expirationDate, lotNumber, productCode} = parsed;
   
         if (serialNumber === "0000") {
-          // serialNumber が "0000" の場合、同じ size, expirationDate, lotNumber で
-          // serialNumber を "0001"～"0300" にして300件分登録する
+          // 同じ lotNumber, boxNumber, productCode の組み合わせが既に存在するかチェック
+          const existing = formalinList.find(
+            (f) => f.lotNumber === lotNumber && f.boxNumber === boxNumber && f.productCode === productCode
+          );
+          if (existing) {
+            setErrorMessage("この箱は既に入庫済です。");
+            target.value = "";
+            return;
+          }
+
+          // productCodeごとに登録件数を決定
+          let registrationCount = 0;
+          switch (productCode) {
+            case "4580161091521": // 30ml
+              registrationCount = 300;
+              break;
+            case "4580161080616": // 25ml中性緩衝
+              registrationCount = 100;
+              break;
+            case "4580161081545": // 3号 40ml
+              registrationCount = 200;
+              break;
+            default:
+              setErrorMessage("このproductCodeは一括登録に対応していません。");
+              target.value = "";
+              return;
+          }
+
           const promises = [];
-          for (let i = 1; i <= 300; i++) {
+          for (let i = 1; i <= registrationCount; i++) {
             const newSerial = i.toString().padStart(4, "0");
-            // ここで、同じ lotNumber 内に newSerial のレコードが既に存在していないかチェックすることも可能
             promises.push(
               createFormalin({
                 key: newSerial,
@@ -75,7 +100,21 @@ export default function InboundClient() {
             (f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber && f.productCode === productCode
           );
           if (existing) {
-            setErrorMessage("このホルマリンは既に入庫済です。");
+            switch (existing.status) {
+              case "入庫済み":
+                setErrorMessage("このホルマリンは既に入庫済です。");
+                break;
+              case "出庫済み":
+                setErrorMessage("このホルマリンは出庫済です。");
+                break;
+              case "提出済み":
+                setErrorMessage("このホルマリンは既に提出済です。");
+                break;
+              default:
+                setErrorMessage(`このホルマリンは現在 ${existing.status} の状態です。`);
+            }
+            target.value = "";
+            return;
           } else {
             await createFormalin({
               key: serialNumber,
@@ -124,7 +163,7 @@ export default function InboundClient() {
         <span className="ml-2 text-gray-600">({ingressedList.length}個)</span>
       </h2>
       
-      <div className="ml-10">
+      <div className="ml-10 bg-blue-50">
         <FormalinTable formalinList={ingressedList} />
       </div>
     </div>

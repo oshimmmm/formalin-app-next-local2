@@ -139,7 +139,7 @@ export default function SubmissionPage() {
           transformOrigin: "top left",
         }}
       >
-        <div style={{ width: "50%" }}>
+        <div style={{ width: "50%" }} className="bg-red-50 p-4 rounded-lg m-2">
           <h2 className="text-xl mx-10 mt-8 mb-2">
             未提出のホルマリン一覧（出庫済み）
           </h2>
@@ -147,7 +147,7 @@ export default function SubmissionPage() {
             <FormalinTable formalinList={pendingSubmissionList} />
           </div>
         </div>
-        <div style={{ width: "50%" }}>
+        <div style={{ width: "50%" }} className="bg-green-50 p-4 rounded-lg m-2">
           <h2 className="text-xl mx-2 mt-8 mb-2">
             提出済みのホルマリン一覧
           </h2>
