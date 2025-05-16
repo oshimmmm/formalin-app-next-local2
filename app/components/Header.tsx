@@ -42,7 +42,7 @@ export default function Header() {
     { path: "/admin", label: "ホルマリン編集" },
     { path: "/user", label: "ユーザー管理" },
     { path: "/backup", label: "バックアップ" },
-    { path: "/archive", label: "アーカイブ" },
+    { path: "/archive", label: "データ削除" },
   ];
 
   // 管理者なら adminLinks、それ以外なら commonLinks

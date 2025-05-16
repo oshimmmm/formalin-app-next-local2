@@ -18,6 +18,7 @@ export default function OutboundPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedPlace, setSelectedPlace] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false); // 追加
 
   // マウント時にフォーカス
   useEffect(() => {
@@ -36,6 +37,11 @@ export default function OutboundPage() {
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       const target = e.target as HTMLInputElement;
+      if (isLoading) {
+        setErrorMessage("処理中です。しばらくお待ちください。");
+        target.value = "";
+        return;
+      }
       const code = target.value.trim();
       target.value = "";
       if (!code) return;
@@ -74,14 +80,14 @@ export default function OutboundPage() {
         // productCodeごとに出庫件数を決定
         let registrationCount = 0;
         switch (productCode) {
-          case "4580161091521": // 30ml
+          case "4580161081859": // 30ml
             registrationCount = 300;
             break;
           case "4580161080616": // 25ml中性緩衝
             registrationCount = 100;
             break;
           case "4580161081545": // 3号 40ml
-            registrationCount = 200;
+            registrationCount = 150;
             break;
           default:
             setErrorMessage("この規格のホルマリンは一括出庫に対応していません。");
@@ -89,6 +95,7 @@ export default function OutboundPage() {
         }
 
         try {
+          setIsLoading(true); // ローディング開始
           const promises = [];
           for (let i = 1; i <= registrationCount; i++) {
             const currentSerial = i.toString().padStart(4, "0");
@@ -116,6 +123,8 @@ export default function OutboundPage() {
         } catch (err) {
           console.error(err);
           setErrorMessage("一括出庫処理中にエラーが発生しました。");
+        } finally {
+          setIsLoading(false); // ローディング終了
         }
       } else {
         // 既存の通常処理（単品出庫）
@@ -183,14 +192,27 @@ export default function OutboundPage() {
       </select>
       <br />
       <br />
-      <input
-        type="text"
-        ref={inputRef}
-        onKeyDown={handleScan}
-        placeholder="二次元バーコードを読み込んでください"
-        className="text-2xl border border-gray-300 rounded p-2 w-1/3 ml-10"
-      />
-      {errorMessage && <p className="text-red-500 ml-10">{errorMessage}</p>}
+      <div className="relative ml-10">
+        <input
+          type="text"
+          ref={inputRef}
+          onKeyDown={handleScan}
+          placeholder="二次元バーコードを読み込んでください"
+          className={`text-2xl border border-gray-300 rounded p-2 w-1/3 ${
+            isLoading ? "bg-gray-100" : ""
+          }`}
+          disabled={isLoading}
+        />
+        {isLoading && (
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-70 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+              <span className="text-lg font-semibold">一括出庫中...</span>
+            </div>
+          </div>
+        )}
+      </div>
+      {errorMessage && <p className="text-red-500 ml-10 mt-2">{errorMessage}</p>}
       <div className="bg-red-50">
         <h2 className="text-xl mx-10 mt-8 mb-2">出庫済みホルマリン一覧</h2>
         <div className="ml-10">
