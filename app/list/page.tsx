@@ -98,7 +98,7 @@ export default function ListPage() {
       {/* 履歴モーダル */}
       {selectedHistoryKey && (
         <Modal onClose={() => setSelectedHistoryKey(null)}>
-          <h2 className="text-xl mb-4">更新履歴: {selectedFormalin ? `${selectedFormalin.lotNumber} - ${selectedFormalin.boxNumber} - ${selectedFormalin.key}` : ""}</h2>
+          <h2 className="text-xl mb-4">更新履歴: {selectedFormalin ? `${selectedFormalin.lotNumber}-${selectedFormalin.boxNumber}-${selectedFormalin.key}-${selectedFormalin.size}` : ""}</h2>
           {(() => {
             if (history.length === 0) {
               return <p>履歴はありません</p>;

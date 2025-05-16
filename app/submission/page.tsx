@@ -89,7 +89,7 @@ export default function SubmissionPage() {
                 oldStatus: existingFormalin.status,
                 newStatus: "提出済み",
                 oldPlace: existingFormalin.place,
-                newPlace: existingFormalin.place, // 場所は変更しない想定
+                newPlace: "病理へ提出",
               });
               setErrorMessage("");
             } catch (err) {
