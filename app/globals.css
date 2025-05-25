@@ -21,7 +21,45 @@ body {
 }
 
 @media print {
+  /* 印刷時にモーダル以外の要素を非表示にする */
+  .modal-open > *:not(.modal-container) {
+    display: none !important;
+  }
+
+  /* モーダルの背景を非表示 */
+  .modal-container {
+    position: absolute !important;
+    background-color: transparent !important;
+    padding: 0 !important;
+    height: auto !important;
+  }
+
+  /* 印刷時のモーダルコンテンツのスタイル */
+  .modal-content-print {
+    position: relative !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 印刷非表示要素 */
   .hide-on-print {
     display: none !important;
+  }
+
+  /* リスト項目の改ページ防止 */
+  li {
+    page-break-inside: avoid !important;
+    margin-bottom: 1em !important;
+  }
+
+  /* モーダル内のコンテンツ */
+  .modal-print {
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 }

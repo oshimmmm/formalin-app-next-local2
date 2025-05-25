@@ -65,7 +65,7 @@ export default function ListPage() {
   const history: HistoryEntry[] = selectedFormalin?.histories ?? [];
 
   return (
-    <div>
+    <div className={selectedHistoryKey ? 'modal-open' : ''}>
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">ホルマリン一覧ページ</h1>
       <div className="ml-10">
         <div className="flex items-center space-x-2 hide-on-print mb-2">
@@ -98,38 +98,40 @@ export default function ListPage() {
       {/* 履歴モーダル */}
       {selectedHistoryKey && (
         <Modal onClose={() => setSelectedHistoryKey(null)}>
-          <h2 className="text-xl mb-4">更新履歴: {selectedFormalin ? `${selectedFormalin.lotNumber}-${selectedFormalin.boxNumber}-${selectedFormalin.key}-${selectedFormalin.size}` : ""}</h2>
-          {(() => {
-            if (history.length === 0) {
-              return <p>履歴はありません</p>;
-            }
-            // 配列をコピーして日時降順にソート
-            const sortedHistory = [...history].sort((a, b) => {
-              const aTime = new Date(a.updatedAt ?? "").getTime();
-              const bTime = new Date(b.updatedAt ?? "").getTime();
-              return bTime - aTime;
-            });
+          <div className="modal-print">
+            <h2 className="text-xl mb-4">更新履歴: {selectedFormalin ? `${selectedFormalin.lotNumber}-${selectedFormalin.boxNumber}-${selectedFormalin.key}-${selectedFormalin.size}` : ""}</h2>
+            {(() => {
+              if (history.length === 0) {
+                return <p>履歴はありません</p>;
+              }
+              // 配列をコピーして日時降順にソート
+              const sortedHistory = [...history].sort((a, b) => {
+                const aTime = new Date(a.updatedAt ?? "").getTime();
+                const bTime = new Date(b.updatedAt ?? "").getTime();
+                return bTime - aTime;
+              });
 
-            return (
-              <ul className="list-disc list-inside">
-                {sortedHistory.map((h, index) => (
-                  <li key={index}>
-                    <div>更新者: {h.updatedBy}</div>
-                    <div>
-                      更新日時:{" "}
-                      {h.updatedAt
-                        ? new Date(h.updatedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
-                        : "不明"}
-                    </div>
-                    <div>旧ステータス: {h.oldStatus}</div>
-                    <div>新ステータス: {h.newStatus}</div>
-                    <div>旧場所: {h.oldPlace}</div>
-                    <div>新場所: {h.newPlace}</div>
-                  </li>
-                ))}
-              </ul>
-            );
-          })()}
+              return (
+                <ul className="list-disc list-inside">
+                  {sortedHistory.map((h, index) => (
+                    <li key={index}>
+                      <div>更新者: {h.updatedBy}</div>
+                      <div>
+                        更新日時:{" "}
+                        {h.updatedAt
+                          ? new Date(h.updatedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
+                          : "不明"}
+                      </div>
+                      <div>旧ステータス: {h.oldStatus}</div>
+                      <div>新ステータス: {h.newStatus}</div>
+                      <div>旧場所: {h.oldPlace}</div>
+                      <div>新場所: {h.newPlace}</div>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
+          </div>
         </Modal>
       )}
     </div>
