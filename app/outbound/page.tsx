@@ -83,7 +83,7 @@ export default function OutboundPage() {
       const expected = (() => {
         switch (productCode) {
           case "4580161081859": return 300;
-          case "4580161080616": return 100;
+          case "4580161081521": return 100;
           case "4580161081545": return 150;
           default: return 0;
         }

@@ -83,7 +83,7 @@ export default function InboundClient() {
         case "4580161081859":   // 30 ml
           registrationCount = 300;
           break;
-        case "4580161080616":   // 25 ml 中性緩衝
+        case "4580161081521":   // 25 ml 中性緩衝
           registrationCount = 100;
           break;
         case "4580161081545":   // 3号 40 ml

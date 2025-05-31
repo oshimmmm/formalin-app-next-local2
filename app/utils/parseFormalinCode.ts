@@ -51,7 +51,7 @@ export interface ParsedFormalinCode {
     let size = '';
     if (productCode === '4562160402859') {
       size = '7ml';
-    } else  if (productCode === '4580161080616') {
+    } else  if (productCode === '4580161081521') {
       size = '25ml中性緩衝';
     } else  if (productCode === '4580161080623') {
       size = '25ml';
