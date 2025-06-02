@@ -197,6 +197,7 @@ export default function OutboundPage() {
         <option value="外科">外科</option>
         <option value="内科">内科</option>
         <option value="病棟">病棟</option>
+        <option value="病理">血液(マルク用)</option>
       </select>
 
       {/* バーコード入力 ------------------------------------------------ */}
