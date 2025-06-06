@@ -48,16 +48,16 @@ export default function HomePage() {
       )
     : formalinList;
 
-  // ここでは「出庫済み」のものだけ表示する例
+  // ここでは「出庫済み」かつ「25ml中性緩衝」以外のものだけ表示する
   const filteredShukkoZumiList = filteredList.filter(
-    (f) => f.status === "出庫済み"
+    (f) => f.status === "出庫済み" && f.size !== "25ml中性緩衝"
   );
 
   return (
     <div>
       <h1 className="text-3xl font-bold mt-4 ml-10">ホーム</h1>
       <p className="text-base text-gray-500 mb-4 ml-10">
-        ＊どこかに出庫して、返ってきていないホルマリンの一覧が表示されています。
+        ＊どこかに出庫して、返ってきていないホルマリンの一覧が表示されています。（25ml中性緩衝を除く）
       </p>
       <div className="ml-10">
         <input

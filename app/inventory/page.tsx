@@ -3,6 +3,20 @@
 import React, { useState, useRef } from "react";
 import { InventoryDataBySizeType } from "../types/inventory";
 
+// 共通の印刷時詳細情報スタイルコンポーネント
+const PrintDetailInfo = ({ children }: { children: React.ReactNode }) => (
+  <div className="hidden print:!block mt-2 text-[9px] text-gray-600 border-t pt-1">
+    {children}
+  </div>
+);
+
+// 詳細情報の行コンポーネント
+const DetailRow = ({ label, value }: { label: string; value: string | number }) => (
+  <span className="inline-block mr-2">
+    {label}：{value}
+  </span>
+);
+
 export default function InventoryPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -41,6 +55,36 @@ export default function InventoryPage() {
     window.print();
   };
 
+  const handleDownloadOutboundDetails = async () => {
+    if (!startDate || !endDate) {
+      setError("開始日と終了日を入力してください。");
+      return;
+    }
+    setError("");
+    try {
+      const response = await fetch("/api/inventory/outbound-details", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ startDate, endDate }),
+      });
+      if (!response.ok) {
+        throw new Error("出庫詳細の取得に失敗しました。");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `outbound-details_${startDate}_${endDate}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      setError("出庫詳細のダウンロード中にエラーが発生しました。");
+    }
+  };
+
   return (
     <div className="min-h-screen p-8">
       {/* 印刷時に非表示にする入力フォーム */}
@@ -67,12 +111,20 @@ export default function InventoryPage() {
           </div>
         </div>
         {error && <p className="text-red-500 mb-4">{error}</p>}
-        <button
-          onClick={handleCheck}
-          className="bg-blue-500 text-white px-4 py-2 rounded mb-4 hover:bg-blue-600 transition-colors"
-        >
-          入出庫数確認
-        </button>
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={handleCheck}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+          >
+            入出庫数確認
+          </button>
+          <button
+            onClick={handleDownloadOutboundDetails}
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors"
+          >
+            出庫詳細Excelダウンロード
+          </button>
+        </div>
       </div>
 
       {/* 印刷対象のコンテンツ */}
@@ -102,21 +154,109 @@ export default function InventoryPage() {
               {Object.entries(inventoryData).map(([size, data]) => (
                 <div key={size} className="border-b last:border-b-0 pb-3">
                   <h3 className="text-base font-semibold mb-2 text-gray-700">{size}</h3>
-                  <div className="grid grid-cols-4 gap-3 pl-2">
-                    <div className="bg-gray-50 p-2 rounded">
-                      <span className="block text-xs text-gray-600">入庫数</span>
-                      <span className="text-lg font-bold">{data.inCount}</span>
+                  <div className="grid grid-cols-3 gap-3 pl-2 print:!gap-1.5">
+                    {/* 各カードの共通クラス */}
+                    <div className="bg-gray-50 p-2 rounded relative group print:!p-1.5 print:!rounded-sm">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="block text-xs text-gray-600">入庫数</span>
+                          <span className="text-lg font-bold">{data.inCount}</span>
+                        </div>
+                        
+                        {/* 入庫詳細情報 - 画面表示時 */}
+                        <div className="hidden group-hover:block print:hidden ml-4 text-xs text-gray-600">
+                          {data.inboundDetails.map((detail, index) => (
+                            <div key={index} className="mb-1">
+                              <div>ロットナンバー：{detail.lotNumber}</div>
+                              <div className="ml-1">
+                                入庫日：{detail.inboundDate}
+                                <span className="ml-1">入庫者：{detail.updatedBy}</span>
+                                <span className="ml-1">入庫数：{detail.count}個</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 入庫詳細情報 - 印刷時 */}
+                        <PrintDetailInfo>
+                          {data.inboundDetails.map((detail, index) => (
+                            <div key={index} className="mb-0.5">
+                              <div className="font-semibold">ロットナンバー：{detail.lotNumber}</div>
+                              <div className="ml-1">
+                                <DetailRow label="入庫日" value={detail.inboundDate} />
+                                <DetailRow label="入庫者" value={detail.updatedBy} />
+                                <DetailRow label="入庫数" value={`${detail.count}個`} />
+                              </div>
+                            </div>
+                          ))}
+                        </PrintDetailInfo>
+                      </div>
                     </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                      <span className="block text-xs text-gray-600">出庫数</span>
-                      <span className="text-lg font-bold">{data.outCount + data.submissionCount}</span>
-                      <span className="block text-xs text-gray-500">
-                        （出庫済み数：{data.outCount} + 提出済み数：{data.submissionCount}）
-                      </span>
+
+                    {/* 出庫カード */}
+                    <div className="bg-gray-50 p-2 rounded relative group print:p-1.5">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="block text-xs text-gray-600">出庫数</span>
+                          <span className="text-lg font-bold">{data.outCount}</span>
+                        </div>
+                        
+                        {/* 出庫詳細情報 - 画面表示時 */}
+                        <div className="hidden group-hover:block print:hidden ml-4 text-xs text-gray-600">
+                          {data.outboundDetails.map((detail, index) => (
+                            <div key={index} className="mb-1">
+                              <div>ロットナンバー：{detail.lotNumber}</div>
+                              <div className="ml-1">
+                                <span>出庫数：{data.outCount}個</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 出庫詳細情報 - 印刷時 */}
+                        <PrintDetailInfo>
+                          {data.outboundDetails.map((detail, index) => (
+                            <div key={index} className="mb-0.5">
+                              <div className="font-semibold">ロットナンバー：{detail.lotNumber}</div>
+                              <div className="ml-1">
+                                <DetailRow label="出庫" value={`${data.outCount}個`} />
+                              </div>
+                            </div>
+                          ))}
+                        </PrintDetailInfo>
+                      </div>
                     </div>
-                    <div className="bg-gray-50 p-2 rounded">
-                      <span className="block text-xs text-gray-600">在庫数</span>
-                      <span className="text-lg font-bold">{data.stockCount}</span>
+
+                    {/* 在庫カード */}
+                    <div className="bg-gray-50 p-2 rounded relative group print:p-1.5">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="block text-xs text-gray-600">在庫数</span>
+                          <span className="text-lg font-bold">{data.stockCount}</span>
+                        </div>
+                        
+                        {/* 在庫詳細情報 - 画面表示時 */}
+                        <div className="hidden group-hover:block print:hidden ml-4 text-xs text-gray-600">
+                          {data.stockDetails.map((detail, index) => (
+                            <div key={index} className="mb-1">
+                              <span>ロットナンバー：{detail.lotNumber}</span>
+                              <span className="ml-2">在庫数：{detail.count}個</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 在庫詳細情報 - 印刷時 */}
+                        <PrintDetailInfo>
+                          {data.stockDetails.map((detail, index) => (
+                            <div key={index} className="mb-0.5">
+                              <div className="font-semibold">ロットナンバー：{detail.lotNumber}</div>
+                              <div className="ml-1">
+                                <DetailRow label="在庫数" value={`${detail.count}個`} />
+                              </div>
+                            </div>
+                          ))}
+                        </PrintDetailInfo>
+                      </div>
                     </div>
                   </div>
                 </div>

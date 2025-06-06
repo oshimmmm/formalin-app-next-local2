@@ -8,6 +8,7 @@ import { FormalinContext } from "../Providers/FormalinProvider";
 
 export default function ListPage() {
   const { formalinList } = useContext(FormalinContext)!;
+  const [filteredCount, setFilteredCount] = useState(0); // 追加
 
   // searchUniqueId: "lotNumber - boxNumber - serialNumber" の形式の一意識別子
   const [selectedHistoryKey, setSelectedHistoryKey] = useState<number | null>(null);
@@ -83,15 +84,19 @@ export default function ListPage() {
           >
             印刷
           </button>
+          <span className="text-gray-600 ml-2">
+            表示件数: {filteredCount}件
+          </span>
         </div>
-  
+
         {errorMessage && <p className="text-red-500 text-xl">{errorMessage}</p>}
-  
+
         <FormalinTable
           formalinList={filteredList}
           showLotNumber={true}
           showHistoryButton={true}
           onHistoryClick={handleHistoryClick}
+          onFilteredCountChange={setFilteredCount}
         />
       </div>
   

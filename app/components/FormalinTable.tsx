@@ -1,7 +1,7 @@
 // app/components/FormalinTable.tsx
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Formalin } from "../types/Formalin";
 
 type SortableKey =
@@ -15,9 +15,10 @@ type SortableKey =
 
 interface FormalinTableProps {
   formalinList: Formalin[];
-  showLotNumber?: boolean;      // ロットナンバーを表示するか
-  showHistoryButton?: boolean;  // 履歴ボタンを表示するか
+  showLotNumber?: boolean;
+  showHistoryButton?: boolean;
   onHistoryClick?: (key: number) => void;
+  onFilteredCountChange?: (count: number) => void; // 追加
 }
 
 export default function FormalinTable({
@@ -25,6 +26,7 @@ export default function FormalinTable({
   showLotNumber = false,
   showHistoryButton = false,
   onHistoryClick,
+  onFilteredCountChange, // 追加
 }: FormalinTableProps) {
   // ソート状態
   const [sortConfig, setSortConfig] = useState<{
@@ -161,6 +163,11 @@ export default function FormalinTable({
     return "";
   };
 
+  // フィルタリング後のデータ数を親コンポーネントに通知
+  useEffect(() => {
+    onFilteredCountChange?.(sortedFormalinList.length);
+  }, [sortedFormalinList, onFilteredCountChange]);
+
   return (
     <div className="overflow-x-auto shadow rounded-lg">
       <table className="min-w-full divide-y divide-gray-300 table-fixed">
@@ -231,7 +238,7 @@ export default function FormalinTable({
               <div
                 onClick={() => requestSort("timestamp")}
                 style={getHeaderStyle("timestamp")}
-                className="text-lg cursor-pointer"
+                className="text-sm cursor-pointer"
               >
                 最終更新日時
               </div>

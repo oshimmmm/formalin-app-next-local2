@@ -17,7 +17,7 @@ export default function AdminPage() {
   const username = session?.user?.username || "anonymous";
 
   // 例：選択可能な出庫先とステータス
-  const places = ["病理在庫", "病理", "内視鏡", "外科", "内科", "病棟"];
+  const places = ["病理在庫", "病理", "手術室", "内視鏡", "放診", "泌尿器", "頭頚部", "婦人科", "外科", "内科", "病棟", "血液（マルク用）"];
   const statuses = ["入庫済み", "出庫済み", "提出済み"];
 
   useEffect(() => {

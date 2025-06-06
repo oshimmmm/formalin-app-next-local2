@@ -22,11 +22,14 @@ export default function OutboundPage() {
   /* Local state                                                        */
   /* ------------------------------------------------------------------ */
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null); // 追加
   const [selectedPlace, setSelectedPlace] = useState("");
-  const [errorMessage, setErrorMessage]   = useState("");
-  const [isLoading, setIsLoading]         = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [filteredCount, setFilteredCount] = useState(0); // 追加
 
-  useEffect(() => inputRef.current?.focus(), []);
+  // マウント時のフォーカスを select 要素に変更
+  useEffect(() => selectRef.current?.focus(), []);
 
   /* 入庫済み → 出庫済みへ変更された一覧 */
   const egressedList = formalinList.filter(
@@ -182,6 +185,7 @@ export default function OutboundPage() {
       </label>
       <select
         id="place-select"
+        ref={selectRef} // 追加
         value={selectedPlace}
         onChange={(e) => setSelectedPlace(e.target.value)}
         className="text-2xl border border-gray-300 rounded p-2 w-1/5"
@@ -197,11 +201,11 @@ export default function OutboundPage() {
         <option value="外科">外科</option>
         <option value="内科">内科</option>
         <option value="病棟">病棟</option>
-        <option value="病理">血液(マルク用)</option>
+        <option value="血液(マルク用)">血液(マルク用)</option>
       </select>
 
-      {/* バーコード入力 ------------------------------------------------ */}
-      <div className="relative ml-10 mt-4">
+      {/* バーコード入力と表示件数 */}
+      <div className="relative ml-10 mt-4 flex items-center">
         <input
           type="text"
           ref={inputRef}
@@ -212,6 +216,17 @@ export default function OutboundPage() {
             isLoading ? "bg-gray-100" : ""
           }`}
         />
+        
+        {/* 表示件数を右側に配置 */}
+        <div className="ml-6 px-4 py-2 bg-blue-100 rounded-lg border-2 border-blue-300 shadow flex items-center">
+          <span className="text-xl font-semibold text-blue-800">
+            出庫済み: {filteredCount}件
+          </span>
+          <span className="ml-4 text-gray-600 text-lg">
+            ←バーコード読ませたら数が増えている事を確認してください
+          </span>
+        </div>
+
         {isLoading && (
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
                           bg-black bg-opacity-70 text-white px-6 py-3 rounded-lg z-50">
@@ -229,9 +244,17 @@ export default function OutboundPage() {
 
       {/* 出庫済み一覧 -------------------------------------------------- */}
       <div className="bg-red-50">
-        <h2 className="text-xl mx-10 mt-8 mb-2">出庫済みホルマリン一覧</h2>
+        <div className="flex items-center mx-10 mt-8 mb-2">
+          <h2 className="text-xl">出庫済みホルマリン一覧</h2>
+          <span className="text-gray-600 ml-4">
+            表示件数: {filteredCount}件
+          </span>
+        </div>
         <div className="ml-10">
-          <FormalinTable formalinList={egressedList} />
+          <FormalinTable 
+            formalinList={egressedList}
+            onFilteredCountChange={setFilteredCount}
+          />
         </div>
       </div>
     </div>

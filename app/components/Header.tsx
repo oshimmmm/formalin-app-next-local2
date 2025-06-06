@@ -34,6 +34,7 @@ export default function Header() {
     { path: "/submission", label: "提出" },
     { path: "/reverse", label: "戻入" },
     { path: "/list", label: "ホルマリン一覧" },
+    { path: "/inventory", label: "在庫確認" },
   ];
 
   // 管理者ユーザーのみ表示したいリンクを追加
@@ -42,7 +43,6 @@ export default function Header() {
     { path: "/admin", label: "ホルマリン編集" },
     { path: "/user", label: "ユーザー管理" },
     { path: "/backup", label: "バックアップ" },
-    { path: "/inventory", label: "在庫確認" },
     { path: "/archive", label: "データ削除" },
   ];
 

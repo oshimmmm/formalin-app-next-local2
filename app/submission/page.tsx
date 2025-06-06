@@ -115,6 +115,9 @@ export default function SubmissionPage() {
     }
   };
 
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [submittedCount, setSubmittedCount] = useState<number>(0);
+
   return (
     <div>
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">提出する</h1>
@@ -140,18 +143,36 @@ export default function SubmissionPage() {
         }}
       >
         <div style={{ width: "50%" }} className="bg-red-50 p-4 rounded-lg m-2">
-          <h2 className="text-xl mx-10 mt-8 mb-2">
-            未提出のホルマリン一覧（出庫済み）
-          </h2>
+          <div className="flex justify-between items-center mx-10 mt-8 mb-2">
+            <h2 className="text-xl">
+              未提出のホルマリン一覧（出庫済み）
+            </h2>
+            <span className="text-2xl text-gray-600">
+              表示件数: {pendingCount}件
+            </span>
+          </div>
           <div className="ml-2">
-            <FormalinTable formalinList={pendingSubmissionList} />
+            <FormalinTable 
+              formalinList={pendingSubmissionList}
+              onFilteredCountChange={setPendingCount}
+            />
           </div>
         </div>
         <div style={{ width: "50%" }} className="bg-green-50 p-4 rounded-lg m-2">
-          <h2 className="text-xl mx-2 mt-8 mb-2">
-            提出済みのホルマリン一覧
-          </h2>
-          <FormalinTable formalinList={submittedList} />
+          <div className="flex justify-between items-center mx-10 mt-8 mb-2">
+            <h2 className="text-xl">
+              提出済みのホルマリン一覧
+            </h2>
+            <span className="text-2xl text-gray-600">
+              表示件数: {submittedCount}件
+            </span>
+          </div>
+          <div className="ml-2">
+            <FormalinTable 
+              formalinList={submittedList}
+              onFilteredCountChange={setSubmittedCount}
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -11,96 +11,323 @@ const SIZES = [
 export async function POST(request: Request) {
   try {
     const { startDate, endDate } = await request.json();
-    
+
     const start = new Date(startDate);
     start.setHours(0, 0, 0, 0);
-    
+
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
     const inventoryBySize: InventoryDataBySizeType = {};
 
     for (const size of SIZES) {
-      const [inCount, outCount, stockCount, submissionCount] = await Promise.all([
-        // 入庫数を取得（formalinIdでユニーク）
-        prisma.history.findMany({
-          where: {
-            updated_at: {
-              gte: start,
-              lte: end,
-            },
-            old_status: "",
-            new_status: "入庫済み",
-            formalin: {
-              size: size
-            }
+      // ─── 1) 入庫数を取得（formalinIdでユニーク） ───
+      const inCount = await prisma.history.findMany({
+        where: {
+          updated_at: {
+            gte: start,
+            lte: end,
           },
-          distinct: ['formalinId'],
-        }).then(results => results.length),
+          old_status: "",
+          new_status: "入庫済み",
+          formalin: {
+            size: size,
+          },
+        },
+        distinct: ["formalinId"],
+      }).then((results) => results.length);
 
-        // 出庫数を取得（formalinIdでユニーク）
-        prisma.formalin.findMany({
-          where: {
-            updatedAt: {
-              gte: start,
-              lte: end,
-            },
-            status: "出庫済み",
-            size: size
-          },
-          distinct: ['id'], 
-        }).then(results => results.length),
+      // ─── 2) 出庫数を取得 ───
+      // 2-1) 「そのサイズに属するすべての formalinId」をまず取得
+      const allFormalinIds = await prisma.formalin.findMany({
+        where: { size },
+        select: { id: true },
+      }).then((rows) => rows.map((r) => r.id));
 
-        // 在庫数を取得（末日時点）
-        prisma.history.findMany({
-          where: {
-            updated_at: {
-              gte: new Date('2025-05-01'),
-              lte: end // 末日以前のすべての履歴を対象とする
+      // 2-2) 期間開始前の各 formalinId の最終履歴を個別に findFirst で取得
+      const initialWasCounted = new Map<number, boolean>();
+      await Promise.all(
+        allFormalinIds.map(async (formalinId) => {
+          const lastHistory = await prisma.history.findFirst({
+            where: {
+              formalinId,
+              updated_at: { lt: start },
             },
-            formalin: {
-              size: size
-            }
-          },
-          orderBy: {
-            updated_at: 'desc' // 最新順に並べる
-          },
-          select: {
-            formalinId: true,
-            new_place: true,
-            updated_at: true
-          }
-        }).then(results => {
-          // 各formalinIdについて、最新の履歴のみを保持
-          const latestStateMap = new Map();
-          
-          results.forEach(record => {
-            if (!latestStateMap.has(record.formalinId)) {
-              latestStateMap.set(record.formalinId, record);
-            }
+            orderBy: { updated_at: "desc" },
+            select: { new_status: true },
           });
+          const was = lastHistory
+            ? lastHistory.new_status === "出庫済み" || lastHistory.new_status === "提出済み"
+            : false;
+          initialWasCounted.set(formalinId, was);
+        })
+      );
 
-          // 最新状態が "病理在庫" であるものの数をカウント
-          return Array.from(latestStateMap.values())
-            .filter(record => record.new_place === "病理在庫")
-            .length;
-        }),
-
-        // 提出数を取得（formalinIdでユニーク）
-        prisma.formalin.findMany({
-          where: {
-            updatedAt: {
-              gte: start,
-              lte: end,
-            },
-            status: "提出済み",
-            size: size
+      // 2-3) 期間内のすべての履歴を取得
+      const periodHistories = await prisma.history.findMany({
+        where: {
+          updated_at: {
+            gte: start,
+            lte: end,
           },
-          distinct: ['id'],
-        }).then(results => results.length),
-      ]);
+          formalin: {
+            size: size,
+          },
+        },
+        orderBy: [
+          { formalinId: "asc" },
+          { updated_at: "asc" },
+        ],
+        select: {
+          formalinId: true,
+          old_status: true,
+          new_status: true,
+        },
+      });
 
-      inventoryBySize[size] = { inCount, outCount, stockCount, submissionCount };
+      const outboundMap = new Map<number, number>();
+      let currentFormalinId: number | null = null;
+      let wasCounted = false;
+
+      for (const record of periodHistories) {
+        if (record.formalinId === null) continue;
+        const fId = record.formalinId;
+
+        if (currentFormalinId !== fId) {
+          currentFormalinId = fId;
+          // 期間開始前の状態を照会して初期化
+          wasCounted = initialWasCounted.get(fId) ?? false;
+        }
+
+        const oldS = record.old_status ?? "";
+        const newS = record.new_status ?? "";
+
+        // ── 真の出庫イベント ──
+        // old="入庫済み" → new="出庫済み" または new="提出済み" のときにカウント
+        if (
+          !wasCounted &&
+          oldS === "入庫済み" &&
+          (newS === "出庫済み" || newS === "提出済み")
+        ) {
+          outboundMap.set(fId, (outboundMap.get(fId) || 0) + 1);
+          wasCounted = true;
+        }
+        // ── 戻入イベント（出庫済み → 入庫済み）──
+        else if (wasCounted && oldS === "出庫済み" && newS === "入庫済み") {
+          outboundMap.set(fId, (outboundMap.get(fId) || 0) - 1);
+          wasCounted = false;
+        }
+        // ── 強制編集で「提出済みまたは他の状態」→「入庫済み」に戻された場合のみ戻入扱い ──
+        else if (
+          wasCounted &&
+          oldS !== "" &&
+          oldS !== "入庫済み" &&
+          newS === "入庫済み"
+        ) {
+          outboundMap.set(fId, (outboundMap.get(fId) || 0) - 1);
+          wasCounted = false;
+        }
+        // ── 「提出済み → 出庫済み」の強制変更は無視 ──
+        else if (oldS === "提出済み" && newS === "出庫済み") {
+          // 何もしない
+        }
+        // その他の状態変化は net 出庫数に影響しない
+      }
+
+      const outCount = Array.from(outboundMap.values()).reduce(
+        (sum, cnt) => sum + cnt,
+        0
+      );
+
+      // ─── 3) 在庫数を取得（末日時点） ───
+      const stockResult = await prisma.history.findMany({
+        where: {
+          updated_at: {
+            gte: new Date("2025-05-01"),
+            lte: end,
+          },
+          formalin: {
+            size: size,
+          },
+        },
+        orderBy: {
+          updated_at: "desc",
+        },
+        select: {
+          formalinId: true,
+          new_place: true,
+          formalin: {
+            select: {
+              lot_number: true,
+            },
+          },
+        },
+      }).then((results) => {
+        const latestStateMap = new Map<number, typeof results[0]>();
+
+        for (const record of results) {
+          if (record.formalinId === null) continue;
+          const fId = record.formalinId;
+          if (!latestStateMap.has(fId)) {
+            latestStateMap.set(fId, record);
+          }
+        }
+
+        const inStockRecords = Array.from(latestStateMap.values()).filter(
+          (rec) => rec.new_place === "病理在庫"
+        );
+
+        const stockByLot = inStockRecords.reduce((acc, record) => {
+          const lotNumber = record.formalin?.lot_number || "不明";
+          acc[lotNumber] = (acc[lotNumber] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        const stockDetails = Object.entries(stockByLot).map(
+          ([lotNumber, count]) => ({
+            lotNumber,
+            count: count as number,
+          })
+        );
+
+        return {
+          count: inStockRecords.length,
+          stockDetails,
+        };
+      });
+
+      // ─── 4) 提出数を取得（formalinIdでユニーク） ───
+      const submissionCount = await prisma.formalin.findMany({
+        where: {
+          updatedAt: {
+            gte: start,
+            lte: end,
+          },
+          status: "提出済み",
+          size: size,
+        },
+        distinct: ["id"],
+      }).then((results) => results.length);
+
+      // ─── 5) 入庫詳細情報を取得 ───
+      const inboundDetails = await prisma.history.groupBy({
+        by: ["updated_by", "updated_at"],
+        where: {
+          updated_at: {
+            gte: start,
+            lte: end,
+          },
+          new_status: "入庫済み",
+          old_status: "",
+          formalin: {
+            size: size,
+          },
+        },
+        _count: {
+          formalinId: true,
+        },
+      }).then(async (groups) => {
+        const details = await Promise.all(
+          groups.map(async (group) => {
+            const lotNumber = await prisma.formalin.findFirst({
+              where: {
+                histories: {
+                  some: {
+                    updated_by: group.updated_by,
+                    updated_at: group.updated_at,
+                  },
+                },
+              },
+              select: {
+                lot_number: true,
+              },
+            });
+
+            return {
+              lotNumber: lotNumber?.lot_number || "",
+              inboundDate: group.updated_at.toISOString().split("T")[0],
+              updatedBy: group.updated_by || "",
+              count: group._count.formalinId,
+            };
+          })
+        );
+        return details;
+      });
+
+      // ─── 6) 出庫詳細情報を取得 ───
+      const outboundDetails = await prisma.history.findMany({
+        where: {
+          updated_at: {
+            gte: start,
+            lte: end,
+          },
+          formalin: {
+            size: size,
+          },
+        },
+        orderBy: {
+          updated_at: "desc",
+        },
+        select: {
+          formalinId: true,
+          new_status: true,
+          formalin: {
+            select: {
+              lot_number: true,
+            },
+          },
+        },
+      }).then((results) => {
+        // 各 formalinId ごとに最新の履歴を保持
+        const latestStateMap = new Map<number, typeof results[0]>();
+
+        for (const record of results) {
+          if (record.formalinId === null) continue;
+          const fId = record.formalinId;
+          if (!latestStateMap.has(fId)) {
+            latestStateMap.set(fId, record);
+          }
+        }
+
+        // ロット番号ごとに new_status を集計
+        const outboundByLot = new Map<
+          string,
+          { outCount: number; submissionCount: number }
+        >();
+
+        Array.from(latestStateMap.values()).forEach((record) => {
+          const lotNumber = record.formalin?.lot_number || "不明";
+          if (!outboundByLot.has(lotNumber)) {
+            outboundByLot.set(lotNumber, { outCount: 0, submissionCount: 0 });
+          }
+
+          const counts = outboundByLot.get(lotNumber)!;
+          if (record.new_status === "出庫済み") {
+            counts.outCount++;
+          } else if (record.new_status === "提出済み") {
+            counts.submissionCount++;
+          }
+        });
+
+        return Array.from(outboundByLot.entries()).map(
+          ([lotNumber, counts]) => ({
+            lotNumber,
+            outCount: counts.outCount,
+            submissionCount: counts.submissionCount,
+          })
+        );
+      });
+
+      // ─── 7) 結果をオブジェクトにまとめる ───
+      inventoryBySize[size] = {
+        inCount,
+        outCount,
+        stockCount: stockResult.count,
+        submissionCount,
+        inboundDetails,
+        outboundDetails,
+        stockDetails: stockResult.stockDetails,
+      };
     }
 
     return NextResponse.json(inventoryBySize);
