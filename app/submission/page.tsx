@@ -114,7 +114,7 @@ export default function SubmissionPage() {
       setErrorMessage("");
       // 再フェッチして一覧を最新化しても良いですし、
       // context の fetch 側で自動更新されるなら省略可
-      // await fetchFormalinList(true);
+      await fetchFormalinList(true);
     } catch (err) {
       setErrorMessage(
         err instanceof Error ? err.message : "提出処理中に不明なエラーが発生しました。"
