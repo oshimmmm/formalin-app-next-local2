@@ -139,62 +139,80 @@ export async function POST(request: Request) {
         0
       );
 
-      // ─── 3) 在庫数を取得（末日時点） ───
-      const stockResult = await prisma.history.findMany({
+      // ─── 3) 在庫数を取得（end日時点のスナップショット） ───
+      // end 以前の履歴を formalinId ごとに最新順で取り出す
+      const historyRecords = await prisma.history.findMany({
         where: {
-          updated_at: {
-            gte: new Date("2025-05-01"),
-            lte: end,
-          },
-          formalin: {
-            size: size,
-          },
+          updated_at: { lte: end },
+          formalin: { size },
         },
-        orderBy: {
-          updated_at: "desc",
-        },
+        orderBy: [
+          { formalinId: 'asc' },
+          { updated_at: 'desc' },
+        ],
         select: {
           formalinId: true,
-          new_place: true,
+          new_status: true,
           formalin: {
-            select: {
-              lot_number: true,
-            },
+            select: { lot_number: true },
           },
         },
-      }).then((results) => {
-        const latestStateMap = new Map<number, typeof results[0]>();
-
-        for (const record of results) {
-          if (record.formalinId === null) continue;
-          const fId = record.formalinId;
-          if (!latestStateMap.has(fId)) {
-            latestStateMap.set(fId, record);
-          }
-        }
-
-        const inStockRecords = Array.from(latestStateMap.values()).filter(
-          (rec) => rec.new_place === "病理在庫"
-        );
-
-        const stockByLot = inStockRecords.reduce((acc, record) => {
-          const lotNumber = record.formalin?.lot_number || "不明";
-          acc[lotNumber] = (acc[lotNumber] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-
-        const stockDetails = Object.entries(stockByLot).map(
-          ([lotNumber, count]) => ({
-            lotNumber,
-            count: count as number,
-          })
-        );
-
-        return {
-          count: inStockRecords.length,
-          stockDetails,
-        };
       });
+
+      // formalinId ごとに最初のレコード（最新状態）だけを残す
+      const latestMap = new Map<number, {
+        status: string;
+        lotNumber: string;
+      }>();
+      for (const rec of historyRecords) {
+        if (rec.formalinId == null) continue;
+        if (!latestMap.has(rec.formalinId)) {
+          latestMap.set(rec.formalinId, {
+            status: rec.new_status ?? "",
+            lotNumber: rec.formalin?.lot_number ?? "不明",
+          });
+        }
+      }
+
+      // "入庫済み" のものだけ抽出してカウント
+      const inStockEntries = Array.from(latestMap.values())
+        .filter((v) => v.status === "入庫済み");
+
+      const stockCount = inStockEntries.length;
+
+      // ロット番号ごとに件数集計
+      const stockDetailsMap = new Map<string, number>();
+      for (const { lotNumber } of inStockEntries) {
+        stockDetailsMap.set(
+          lotNumber,
+          (stockDetailsMap.get(lotNumber) || 0) + 1
+        );
+      }
+      const stockDetails = Array.from(stockDetailsMap.entries()).map(
+        ([lotNumber, count]) => ({ lotNumber, count })
+      );
+
+      // // ─── 3) 在庫数を取得（末日時点） ───
+      // const stockCount = await prisma.formalin.count({
+      //   where: {
+      //     status: "入庫済み",
+      //     size,
+      //   },
+      // });
+
+      // const stockGroup = await prisma.formalin.groupBy({
+      //   by: ["lot_number"],
+      //   where: {
+      //     status: "入庫済み",
+      //     size,
+      //   },
+      //   _count: { id: true },
+      // });
+
+      // const stockDetails = stockGroup.map(g => ({
+      //   lotNumber: g.lot_number ?? "不明",
+      //   count: g._count.id,
+      // }));
 
       // ─── 4) 提出数を取得（formalinIdでユニーク） ───
       const submissionCount = await prisma.formalin.findMany({
@@ -322,11 +340,11 @@ export async function POST(request: Request) {
       inventoryBySize[size] = {
         inCount,
         outCount,
-        stockCount: stockResult.count,
+        stockCount,
         submissionCount,
         inboundDetails,
         outboundDetails,
-        stockDetails: stockResult.stockDetails,
+        stockDetails,
       };
     }
 
