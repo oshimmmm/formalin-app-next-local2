@@ -132,7 +132,7 @@ export default function InventoryPage() {
         <div ref={printRef}>
           {/* 印刷時のみ表示されるヘッダー */}
           <div className="hidden print:block mb-3">
-            <h1 className="text-xl font-bold text-center">在庫確認結果</h1>
+            <h1 className="text-xl font-bold text-center">入庫・在庫確認結果</h1>
             <p className="text-center text-gray-600 mt-1 text-sm">
               集計期間：{startDate} 〜 {endDate}
             </p>
