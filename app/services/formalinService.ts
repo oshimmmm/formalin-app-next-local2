@@ -11,8 +11,8 @@ import { Formalin, RawFormalin, RawHistoryEntry } from "../types/Formalin";
 const API_BASE_URL = "/api/formalin";
 
 // 1) 一覧取得
-export async function getFormalinData(): Promise<Formalin[]> {
-  const res = await axios.get(API_BASE_URL);
+export async function getFormalinData(includeSubmitted = false): Promise<Formalin[]> {
+  const res = await axios.get(API_BASE_URL, { params: { includeSubmitted } });
   const rawList = res.data as RawFormalin[];
   const convertedList = rawList.map((item) => {
     return {

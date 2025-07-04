@@ -13,10 +13,10 @@ import { Formalin } from "../types/Formalin";
 /* ---------- 型定義 ---------- */
 interface FormalinContextProps {
   formalinList: Formalin[];
-  fetchFormalinList: () => Promise<void>;
+  fetchFormalinList: (includeSubmitted?: boolean) => Promise<void>;
   createFormalin: (p: CreateFormalinPayload) => Promise<void>;
-  editFormalin:   (id: number, p: UpdateFormalinPayload) => Promise<void>;
-  removeFormalin: (id: number)   => Promise<void>;
+  editFormalin: (id: number, p: UpdateFormalinPayload) => Promise<void>;
+  removeFormalin: (id: number) => Promise<void>;
 }
 
 interface CreateFormalinPayload {
@@ -43,24 +43,31 @@ export const FormalinContext = createContext<FormalinContextProps | null>(null);
 
 /* ---------- Provider ---------- */
 export function FormalinProvider({ children }: { children: React.ReactNode }) {
-  const { status } = useSession();         // loading | unauthenticated | authenticated
+  const { status } = useSession(); // loading | unauthenticated | authenticated
   const [formalinList, setFormalinList] = useState<Formalin[]>([]);
 
   /* 一覧取得 */
-  const fetchFormalinList = React.useCallback(async () => {
-    try {
-      const data = await getFormalinData();
-      setFormalinList(data);
-    } catch (err) {
-      console.error("Error fetching formalin data:", err);
-    }
-  }, []);
+  const fetchFormalinList = React.useCallback(
+    async (includeSubmitted: boolean = false) => {
+      try {
+        const data = await getFormalinData(includeSubmitted);
+        setFormalinList(data);
+      } catch (err) {
+        console.error("Error fetching formalin data:", err);
+      }
+    },
+    []
+  );
 
   /* 認証が確定してから 1 回だけ取得 */
   useEffect(() => {
-    if (status === "authenticated") fetchFormalinList();
-    if (status !== "authenticated") setFormalinList([]); // ログアウト時クリア
-  }, [status]);
+    if (status === "authenticated") {
+      // 初期は includeSubmitted=false なので「提出済み以外」を取得
+      fetchFormalinList();
+    } else {
+      setFormalinList([]); // ログアウト時クリア
+    }
+  }, [status, fetchFormalinList]);
 
   /* CRUD 操作（認証済み前提） */
   const createFormalin = async (p: CreateFormalinPayload) => {
@@ -98,7 +105,13 @@ export function FormalinProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <FormalinContext.Provider
-      value={{ formalinList, fetchFormalinList, createFormalin, editFormalin, removeFormalin }}
+      value={{
+        formalinList,
+        fetchFormalinList,
+        createFormalin,
+        editFormalin,
+        removeFormalin,
+      }}
     >
       {children}
     </FormalinContext.Provider>

@@ -3,22 +3,26 @@ import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 
 // GET /api/formalin
-export async function GET() {
-  try {
-    // formalin と history を左結合するイメージ: 
-    // Prismaの場合、 `include: { histories: true }` で一括取得
-    const data = await prisma.formalin.findMany({
-      include: {
-        histories: true,
-      },
-      orderBy: { id: "asc" },
-    });
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  // クエリパラメータ ?includeSubmitted=true があれば「提出済みも含む」
+  const includeSubmitted = url.searchParams.get('includeSubmitted') === 'true';
 
+  try {
+    const data = await prisma.formalin.findMany({
+      where: includeSubmitted
+        ? {}                             // 全件
+        : { status: { not: '提出済み' } }, // 提出済み以外
+      include: { histories: true },
+      orderBy: { id: 'asc' },
+    });
     return NextResponse.json(data);
   } catch (error: unknown) {
-    console.error("GET /api/formalin error:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ success: false, message }, { status: 500 });
+    console.error(error);
+    return NextResponse.json(
+      { success: false, message: error instanceof Error ? error.message : 'Unknown' },
+      { status: 500 }
+    );
   }
 }
 

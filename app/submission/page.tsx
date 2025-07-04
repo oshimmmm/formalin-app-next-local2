@@ -18,105 +18,109 @@ export default function SubmissionPage() {
   const { data: session } = useSession();
   const username = session?.user?.username || "anonymous";
 
-  // 2) FormalinContext から formalinList, updateFormalinStatus を取得
-  const { formalinList, editFormalin } = useContext(FormalinContext)!;
-  // (React版で "updateFormalinStatus" だったならProvider側に合わせて呼び出し先を修正
-  //  ここでは "editFormalin(...)" として呼ぶ例)
+  // 2) Context から在庫リストと fetch, update を取得
+  const { formalinList, fetchFormalinList, editFormalin } =
+    useContext(FormalinContext)!;
 
+  // ── マウント時に「提出済みも含めて」全件取得 ──
+  useEffect(() => {
+    fetchFormalinList(true);
+  }, [fetchFormalinList]);
+
+  // UI 用 refs & state
   const inputRef = useRef<HTMLInputElement>(null);
-  const [errorMessage, setErrorMessage] = useState<string>("");
-
-  // containerRef: 親要素の幅を測定して "shouldScale" を決める
   const containerRef = useRef<HTMLDivElement>(null);
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [shouldScale, setShouldScale] = useState(false);
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [submittedCount, setSubmittedCount] = useState<number>(0);
 
-  // 3) マウント時にフォーカス
+  // ── マウント時＆在庫リスト更新時にフォーカス＆縮小判定 ──
   useEffect(() => {
     inputRef.current?.focus();
-
-    // 親要素の幅と親要素の親要素の幅を比較して、縮小表示するかどうか
     if (containerRef.current) {
-      const containerWidth = containerRef.current.offsetWidth;
-      const parentWidth = containerRef.current.parentElement?.offsetWidth || containerWidth;
-      const ratio = containerWidth / parentWidth;
-
-      if (ratio < 0.5) {
-        setShouldScale(true);
-      } else {
-        setShouldScale(false);
-      }
+      const cw = containerRef.current.offsetWidth;
+      const pw = containerRef.current.parentElement?.offsetWidth || cw;
+      setShouldScale(cw / pw < 0.5);
     }
   }, [formalinList]);
 
-  // '出庫済み'のホルマリン一覧 (未提出)
+  // '出庫済み' のリスト
   const pendingSubmissionList = formalinList.filter(
     (f: Formalin) => f.status === "出庫済み"
   );
 
-  // '提出済み'のホルマリン一覧
-  const submittedList = formalinList.filter(
-    (f: Formalin) => f.status === "提出済み"
+  // 本日の日付範囲を算出
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1
   );
 
-  // 4) バーコード読み取り(Enter押下)
-  const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      const target = e.target as HTMLInputElement;
-      const code = target.value.trim();
-      target.value = "";
+  // '提出済み' かつ 本日更新 のリスト
+  const submittedList = formalinList.filter((f: Formalin) => {
+    if (f.status !== "提出済み" || !f.timestamp) return false;
+    return f.timestamp >= startOfDay && f.timestamp < endOfDay;
+  });
 
-      if (!code) return;
-      try {
-        const parsed = parseFormalinCode(code);
-        if (!parsed) {
-          setErrorMessage("無効なコードです。");
-          return;
-        }
-        // 正常ならエラーメッセージをクリア
-        setErrorMessage("");
-        const { serialNumber, boxNumber, lotNumber, productCode } = parsed;
-        // 既存の formalin を検索
-        const existingFormalin = formalinList.find((f) => f.key === serialNumber && f.lotNumber === lotNumber && f.boxNumber === boxNumber && f.productCode === productCode);
-        if (existingFormalin) {
-          if (existingFormalin.status === "出庫済み") {
-            try {
-              await editFormalin(existingFormalin.id, {
-                key: serialNumber,
-                status: "提出済み",
-                timestamp: new Date(), // 現在時刻
-                updatedBy: username,
-                updatedAt: new Date(),
-                oldStatus: existingFormalin.status,
-                newStatus: "提出済み",
-                oldPlace: existingFormalin.place,
-                newPlace: "病理へ提出",
-              });
-              setErrorMessage("");
-            } catch (err) {
-              if (err instanceof Error) {
-                setErrorMessage(err.message);
-              } else {
-                setErrorMessage("提出処理中に不明なエラーが発生しました。");
-              }
-            }
-          } else {
-            setErrorMessage("このホルマリンは出庫済みの中にありません。出庫されていないか、既に提出処理済みです。");
-          }
-        } else {
-          setErrorMessage("ホルマリンが見つかりません。入庫してください。");
-        }
-      } catch (error) {
-        if (error instanceof Error) {
-          setErrorMessage(error.message);
-        } else {
-          setErrorMessage("不明なエラーが発生しました。");
-        }
+  // ── バーコード読み取り処理（変更不要） ──
+  const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    const target = e.target as HTMLInputElement;
+    const code = target.value.trim();
+    target.value = "";
+    if (!code) return;
+
+    try {
+      const parsed = parseFormalinCode(code);
+      if (!parsed) {
+        setErrorMessage("無効なコードです。");
+        return;
       }
+      setErrorMessage("");
+      const { serialNumber, boxNumber, lotNumber, productCode } = parsed;
+      const existing = formalinList.find(
+        (f) =>
+          f.key === serialNumber &&
+          f.lotNumber === lotNumber &&
+          f.boxNumber === boxNumber &&
+          f.productCode === productCode
+      );
+      if (!existing) {
+        setErrorMessage("ホルマリンが見つかりません。入庫してください。");
+        return;
+      }
+      if (existing.status !== "出庫済み") {
+        setErrorMessage(
+          "このホルマリンは出庫済みの中にありません。出庫されていないか、既に提出済みです。"
+        );
+        return;
+      }
+
+      // ステータス更新
+      await editFormalin(existing.id, {
+        key: serialNumber,
+        status: "提出済み",
+        timestamp: new Date(),
+        updatedBy: username,
+        updatedAt: new Date(),
+        oldStatus: existing.status,
+        newStatus: "提出済み",
+        oldPlace: existing.place,
+        newPlace: "病理へ提出",
+      });
+      setErrorMessage("");
+      // 再フェッチして一覧を最新化しても良いですし、
+      // context の fetch 側で自動更新されるなら省略可
+      // await fetchFormalinList(true);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "提出処理中に不明なエラーが発生しました。"
+      );
     }
   };
-
-  const [pendingCount, setPendingCount] = useState<number>(0);
-  const [submittedCount, setSubmittedCount] = useState<number>(0);
 
   return (
     <div>
@@ -125,7 +129,7 @@ export default function SubmissionPage() {
       <input
         type="text"
         ref={inputRef}
-        onKeyDown={handleScan} // onKeyPress → onKeyDown
+        onKeyDown={handleScan}
         placeholder="二次元バーコードを読み込んでください"
         className="text-2xl border border-gray-300 rounded p-2 w-1/3 ml-10"
       />
@@ -142,33 +146,32 @@ export default function SubmissionPage() {
           transformOrigin: "top left",
         }}
       >
+        {/* 未提出枠 */}
         <div style={{ width: "50%" }} className="bg-red-50 p-4 rounded-lg m-2">
           <div className="flex justify-between items-center mx-10 mt-8 mb-2">
-            <h2 className="text-xl">
-              未提出のホルマリン一覧（出庫済み）
-            </h2>
-            <span className="text-2xl text-gray-600">
+            <h2 className="text-xl">未提出のホルマリン一覧（出庫済み）</h2>
+            <span className="text-2xl font-bold text-red-600 bg-white px-4 py-2 rounded-lg shadow">
               表示件数: {pendingCount}件
             </span>
           </div>
           <div className="ml-2">
-            <FormalinTable 
+            <FormalinTable
               formalinList={pendingSubmissionList}
               onFilteredCountChange={setPendingCount}
             />
           </div>
         </div>
+
+        {/* 本日提出済み枠 */}
         <div style={{ width: "50%" }} className="bg-green-50 p-4 rounded-lg m-2">
           <div className="flex justify-between items-center mx-10 mt-8 mb-2">
-            <h2 className="text-xl">
-              提出済みのホルマリン一覧
-            </h2>
-            <span className="text-2xl text-gray-600">
+            <h2 className="text-xl">本日提出済みのホルマリン一覧</h2>
+            <span className="text-2xl font-bold text-green-600 bg-white px-4 py-2 rounded-lg shadow">
               表示件数: {submittedCount}件
             </span>
           </div>
           <div className="ml-2">
-            <FormalinTable 
+            <FormalinTable
               formalinList={submittedList}
               onFilteredCountChange={setSubmittedCount}
             />
