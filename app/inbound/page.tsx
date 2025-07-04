@@ -39,6 +39,17 @@ export default function InboundClient() {
     (f: Formalin) => f.status === "入庫済み"
   );
 
+  // ── ここで各サイズの件数を算出 ──
+  const biopsyCount = ingressedList.filter(
+    (f) => f.size === "生検用 30ml"
+  ).length;
+  const lymphCount = ingressedList.filter(
+    (f) => f.size === "リンパ節用 40ml"
+  ).length;
+  const bkCount = ingressedList.filter(
+    (f) => f.size === "25ml中性緩衝"
+  ).length;
+
   /* ------------------------------------------------------------------ */
   /* ENTER 押下時のメインハンドラ                                       */
   /* ------------------------------------------------------------------ */
@@ -69,8 +80,8 @@ export default function InboundClient() {
       /* 同じ箱が既に混在していないか確認 */
       const dup = formalinList.find(
         (f) => f.lotNumber === lotNumber &&
-               f.boxNumber === boxNumber &&
-               f.productCode === productCode
+          f.boxNumber === boxNumber &&
+          f.productCode === productCode
       );
       if (dup) {
         setErrorMessage("この箱は既に入庫済みか、一部が入庫されています。");
@@ -100,30 +111,30 @@ export default function InboundClient() {
         /* 送信ペイロードを生成 */
         const nowIso = new Date().toISOString();
         const items = Array.from({ length: registrationCount }, (_, i) => ({
-          key        : (i + 1).toString().padStart(4, "0"),
-          place      : "病理在庫",
-          status     : "入庫済み",
-          timestamp  : nowIso,
+          key: (i + 1).toString().padStart(4, "0"),
+          place: "病理在庫",
+          status: "入庫済み",
+          timestamp: nowIso,
           size,
-          expired    : expirationDate,
+          expired: expirationDate,
           lotNumber,
           boxNumber,
           productCode,
-          updatedBy  : username,
-          updatedAt  : nowIso,
-          oldStatus  : "",
-          newStatus  : "入庫済み",
-          oldPlace   : "",
-          newPlace   : "病理在庫",
+          updatedBy: username,
+          updatedAt: nowIso,
+          oldStatus: "",
+          newStatus: "入庫済み",
+          oldPlace: "",
+          newPlace: "病理在庫",
         }));
 
         const res = await fetch("/api/formalin/bulk", {
-          method : "POST",
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body   : JSON.stringify({ items }),
+          body: JSON.stringify({ items }),
         });
 
-        await fetchFormalinList(); 
+        await fetchFormalinList();
 
         if (!res.ok) {
           const { error, message } = await res.json().catch(() => ({}));
@@ -145,18 +156,18 @@ export default function InboundClient() {
     /* ④ 通常 4 桁シリアルの個別入庫 -------------------------------- */
     const dup = formalinList.find(
       (f) =>
-        f.key       === serialNumber &&
-        f.lotNumber === lotNumber   &&
-        f.boxNumber === boxNumber   &&
+        f.key === serialNumber &&
+        f.lotNumber === lotNumber &&
+        f.boxNumber === boxNumber &&
         f.productCode === productCode
     );
 
     if (dup) {
       switch (dup.status) {
         case "入庫済み": setErrorMessage("このホルマリンは既に入庫済です。"); break;
-        case "出庫済み": setErrorMessage("このホルマリンは出庫済です。");   break;
+        case "出庫済み": setErrorMessage("このホルマリンは出庫済です。"); break;
         case "提出済み": setErrorMessage("このホルマリンは既に提出済です。"); break;
-        default:        setErrorMessage(`現在 ${dup.status} の状態です。`);
+        default: setErrorMessage(`現在 ${dup.status} の状態です。`);
       }
       return;
     }
@@ -164,21 +175,21 @@ export default function InboundClient() {
     /* createFormalin は 1 件ずつの登録用コンテキストメソッド */
     try {
       await createFormalin({
-        key         : serialNumber,
-        place       : "病理在庫",
-        status      : "入庫済み",
-        timestamp   : new Date(),
+        key: serialNumber,
+        place: "病理在庫",
+        status: "入庫済み",
+        timestamp: new Date(),
         size,
-        expired     : expirationDate,
+        expired: expirationDate,
         lotNumber,
         boxNumber,
         productCode,
-        updatedBy   : username,
-        updatedAt   : new Date(),
-        oldStatus   : "",
-        newStatus   : "入庫済み",
-        oldPlace    : "",
-        newPlace    : "病理在庫",
+        updatedBy: username,
+        updatedAt: new Date(),
+        oldStatus: "",
+        newStatus: "入庫済み",
+        oldPlace: "",
+        newPlace: "病理在庫",
       });
       setErrorMessage("");
     } catch (err) {
@@ -195,6 +206,24 @@ export default function InboundClient() {
     <div>
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">入庫する</h1>
 
+      <div className="ml-10 mb-6 space-x-8 text-lg">
+        <span>生検用：<strong>{biopsyCount}</strong>個</span>
+        <span>リンパ節用：<strong>{lymphCount}</strong>個</span>
+        <span
+          className={`px-2 py-1 rounded ${bkCount <= 25 ? "bg-red-200" : ""
+            }`}
+        >
+          BK用：<strong>{bkCount}</strong>個
+        </span>
+      </div>
+
+      {/* BK用が25個以下なら注意メッセージ表示 */}
+      {bkCount <= 25 && (
+        <p className="ml-10 mb-4 text-red-700 font-semibold">
+          BK用ホルマリンの個数が25個以下の場合は発注してください
+        </p>
+      )}
+
       {/* 入力フィールド ------------------------------------------------ */}
       <div className="relative ml-10">
         <input
@@ -203,9 +232,8 @@ export default function InboundClient() {
           onKeyDown={handleScan}
           placeholder="二次元バーコードを読み込んでください"
           disabled={isLoading}
-          className={`text-2xl border border-gray-300 rounded p-2 w-1/3 ${
-            isLoading ? "bg-gray-100" : ""
-          }`}
+          className={`text-2xl border border-gray-300 rounded p-2 w-1/3 ${isLoading ? "bg-gray-100" : ""
+            }`}
         />
 
         {/* ローディングオーバーレイ */}
