@@ -1,15 +1,12 @@
+// app/admin/page.tsx
 "use client";
 
-import React, {
-  useEffect,
-  useState,
-  useContext,
-  KeyboardEvent,
-} from "react";
+import React, { useEffect, useState, useContext, KeyboardEvent } from "react";
 import { useSession } from "next-auth/react";
 import { parseFormalinCode } from "../utils/parseFormalinCode";
 import { Formalin } from "../types/Formalin";
 import { FormalinContext } from "../Providers/FormalinProvider";
+import FormalinTable from "../components/FormalinTable";
 
 export default function AdminPage() {
   // NextAuth からユーザー名取得
@@ -34,26 +31,26 @@ export default function AdminPage() {
     "内視鏡",
     "放診",
     "泌尿器",
-    "頭頚部",
+    "頭頸部",
     "婦人科",
     "外科",
     "内科",
     "病棟",
-    "血液（マルク用）",
+    "血液(マルク用)",
   ];
   const statuses = ["入庫済み", "出庫済み", "提出済み"];
 
-  // 初回マウント＆showSubmitted 切り替え時に全件 or 未提出のみを取得
+  // 初回マウント＆トグル切替で取得
   useEffect(() => {
     fetchFormalinList(showSubmitted);
   }, [fetchFormalinList, showSubmitted]);
 
-  // formalinList が更新されたらテーブル用 posts に反映
+  // 更新が来たら posts に反映
   useEffect(() => {
     setPosts(formalinList);
   }, [formalinList]);
 
-  // バーコード読取
+  // バーコード検索
   const handleBarcodeInput = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     const code = (e.target as HTMLInputElement).value.trim();
@@ -78,32 +75,34 @@ export default function AdminPage() {
   // 検索フィルタ
   const filteredPosts = uniqueId
     ? posts.filter(
-        (post) =>
-          `${post.lotNumber} - ${post.boxNumber} - ${post.key} - ${post.productCode}` ===
+        (p) =>
+          `${p.lotNumber} - ${p.boxNumber} - ${p.key} - ${p.productCode}` ===
           uniqueId
       )
     : posts;
 
-  // 削除
+  // 削除コールバック
   const handleDelete = async (id: number) => {
     if (window.confirm("本当に削除しますか？")) {
       await removeFormalin(id);
     }
   };
 
-  // 編集前プレビュー更新
+  // プレース選択プレビュー
   const handlePlaceChange = (id: number, newPlace: string) => {
     setPosts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, place: newPlace } : p))
     );
   };
+
+  // ステータス選択プレビュー
   const handleStatusChange = (id: number, newStatus: string) => {
     setPosts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
     );
   };
 
-  // 実際の更新
+  // 更新実行
   const handleUpdateData = async (id: number) => {
     const target = posts.find((p) => p.id === id);
     const before = formalinList.find((p) => p.id === id);
@@ -111,7 +110,6 @@ export default function AdminPage() {
     if (!window.confirm("本当に更新しますか？")) return;
 
     const now = new Date();
-    // JST に合わせる
     const timestamp = new Date(
       Date.UTC(
         now.getFullYear(),
@@ -162,69 +160,18 @@ export default function AdminPage() {
         {errorMessage && <p className="text-red-500">{errorMessage}</p>}
       </div>
 
-      <table className="w-4/5 text-lg ml-10">
-        <thead>
-          <tr>
-            <th className="border p-2 text-left">ホルマリンID</th>
-            <th className="border p-2 text-left">規格</th>
-            <th className="border p-2 text-left">Place</th>
-            <th className="border p-2 text-left">Status</th>
-            <th className="border p-2 text-left">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredPosts.map((post) => (
-            <tr key={post.id} className="hover:bg-gray-50">
-              <td className="border p-2">
-                {`${post.lotNumber} - ${post.boxNumber} - ${post.key}`}
-              </td>
-              <td className="border p-2">{post.size}</td>
-              <td className="border p-2">
-                <select
-                  value={post.place}
-                  onChange={(e) => handlePlaceChange(post.id, e.target.value)}
-                  className="w-full p-1 border rounded"
-                >
-                  {places.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="border p-2">
-                <select
-                  value={post.status}
-                  onChange={(e) =>
-                    handleStatusChange(post.id, e.target.value)
-                  }
-                  className="w-full p-1 border rounded"
-                >
-                  {statuses.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="border p-2">
-                <button
-                  onClick={() => handleUpdateData(post.id)}
-                  className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                >
-                  更新
-                </button>
-                <button
-                  onClick={() => handleDelete(post.id)}
-                  className="bg-red-500 text-white px-3 py-1 ml-2 rounded hover:bg-red-600"
-                >
-                  削除
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="ml-10">
+        <FormalinTable
+          formalinList={filteredPosts}
+          editable
+          places={places}
+          statuses={statuses}
+          onPlaceChange={handlePlaceChange}
+          onStatusChange={handleStatusChange}
+          onUpdate={handleUpdateData}
+          onDelete={handleDelete}
+        />
+      </div>
     </div>
   );
 }
