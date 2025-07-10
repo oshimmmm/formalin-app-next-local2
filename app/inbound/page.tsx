@@ -91,7 +91,8 @@ export default function InboundClient() {
       /* 製品コードごとの入庫本数決定 */
       let registrationCount = 0;
       switch (productCode) {
-        case "4580161081859":   // 30 ml
+        case "4580161081859":
+        case "FS0M20QA0W30S430":   // 30 ml
           registrationCount = 300;
           break;
         case "4580161081521":   // 25 ml 中性緩衝

@@ -57,6 +57,8 @@ export interface ParsedFormalinCode {
       size = '25ml';
     } else  if (productCode === '4580161081859') {
       size = '生検用 30ml';
+    } else  if (productCode === 'FS0M20QA0W30S430') {
+      size = '生検用 30ml';
     } else  if (productCode === '4580161081545') {
       size = 'リンパ節用 40ml';
     } else {

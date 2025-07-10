@@ -85,7 +85,9 @@ export default function OutboundPage() {
       /* 規格ごとの本数チェック -------------------------------------- */
       const expected = (() => {
         switch (productCode) {
-          case "4580161081859": return 300;
+          case "4580161081859":
+          case "FS0M20QA0W30S430": // 生検用 30ml
+            return 300;
           case "4580161081521": return 100;
           case "4580161081545": return 150;
           default: return 0;
