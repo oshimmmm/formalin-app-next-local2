@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  formalin-next-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: formalin-next-app-dev
+    # Next.js Dev サーバーを外部 (0.0.0.0) にバインド
+    command: npx next dev -H 0.0.0.0 -p 3001
+    # ソースコードをコンテナにマウントして即時反映
+    volumes:
+      - .:/app:rw
+      # node_modules はコンテナ内のものを利用
+      - /app/node_modules
+    ports:
+      - '3001:3001'
+    environment:
+      - NODE_ENV=development
+      # host.docker.internal:5434 経由で本番 DB に接続
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@host.docker.internal:5434/formalin_next_db
+      - HOST=0.0.0.0
+      - PORT=3001
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=100
