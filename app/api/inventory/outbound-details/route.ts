@@ -121,55 +121,62 @@ export async function POST(request: Request) {
 
     // Excelワークブック作成
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("出庫詳細");
-
-    // ヘッダー設定（不要なカラムを削除）
-    worksheet.columns = [
+    // 列定義（共通）
+    const columns = [
       { header: "ホルマリンKey", key: "combinedKey", width: 20 },
       { header: "規格", key: "size", width: 12 },
       { header: "出庫者", key: "updated_by", width: 10 },
       { header: "更新日", key: "updated_at", width: 20 },
-      { header: "出庫先", key: "new_place", width: 15 }
+      { header: "出庫先", key: "new_place", width: 15 },
     ];
 
-    worksheet.insertRow(1, ["出庫管理台帳"]);
-    worksheet.mergeCells("A1:E1");
-    const titleCell = worksheet.getCell("A1");
-    titleCell.font = { size: 20, bold: true };
-    titleCell.alignment = { horizontal: "left" };
+    // SIZES 配列に従ってシートを追加
+    for (const size of ["25ml中性緩衝", "生検用 30ml", "3号 40ml"] as const) {
+      // ① シート作成（シート名をサイズに）
+      const sheet = workbook.addWorksheet(size);
 
-    // データを古い日付順にソート
-    validOutbounds.sort((a, b) =>
-      new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
-    );
+      // ② ヘッダー行を定義（これが 1 行目に入る）
+      sheet.columns = columns;
 
-    // データを追加（不要なフィールドを削除）
-    validOutbounds.forEach(record => {
-      worksheet.addRow({
-        combinedKey: record.formalin
-          ? `${record.formalin.lot_number} - ${record.formalin.box_number} - ${record.formalin.key}`
-          : "",
-        size: record.formalin?.size || "",
-        updated_by: record.updated_by,
-        updated_at: toJST(record.updated_at),
-        new_place: record.new_place
-      });
-    });
+      // ③ タイトル行を先頭に挿入
+      sheet.insertRow(1, ["出庫管理台帳"]);
+      sheet.mergeCells("A1:E1");
+      const titleCell = sheet.getCell("A1");
+      titleCell.font = { size: 20, bold: true };
+      titleCell.alignment = { horizontal: "left" };
 
-    // ④ 2行目以降にだけ罫線を適用
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      // タイトル行(1)には何もしない、ヘッダー(2)とデータ(3以降)に罫線
-      if (rowNumber >= 2) {
-        row.eachCell(cell => {
-          cell.border = {
-            top: { style: 'thin' },
-            left: { style: 'thin' },
-            bottom: { style: 'thin' },
-            right: { style: 'thin' },
-          };
+      // ④ このサイズの出庫レコードだけ取り出し
+      const rows = validOutbounds
+        .filter((r) => r.formalin?.size === size)
+        .sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
+
+      // ⑤ データ行を 3 行目以降に追加
+      for (const record of rows) {
+        sheet.addRow({
+          combinedKey: record.formalin
+            ? `${record.formalin.lot_number} - ${record.formalin.box_number} - ${record.formalin.key}`
+            : "",
+          size: record.formalin?.size || "",
+          updated_by: record.updated_by,
+          updated_at: toJST(record.updated_at),
+          new_place: record.new_place,
         });
       }
-    });
+
+      // ⑥ 2 行目以降にだけ罫線を適用
+      sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        if (rowNumber >= 2) {
+          row.eachCell((cell) => {
+            cell.border = {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            };
+          });
+        }
+      });
+    }
 
     // バッファに変換してレスポンス
     const buffer = await workbook.xlsx.writeBuffer();
