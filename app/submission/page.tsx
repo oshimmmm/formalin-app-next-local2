@@ -112,7 +112,6 @@ export default function SubmissionPage() {
         newPlace: "病理へ提出",
       });
       setErrorMessage("");
-      // 再フェッチして一覧を最新化しても良いですし、
       // context の fetch 側で自動更新されるなら省略可
       await fetchFormalinList(true);
     } catch (err) {
