@@ -8,13 +8,14 @@ import { FormalinContext } from "../Providers/FormalinProvider";
 import { Formalin } from "../types/Formalin";
 import FormalinTable from "../components/FormalinTable";
 import { parseFormalinCode } from "../utils/parseFormalinCode";
+import ErrorModal from "../components/ErrorModal";
 
 export default function OutboundPage() {
   /* ------------------------------------------------------------------ */
   /* Context & Session                                                  */
   /* ------------------------------------------------------------------ */
   const { formalinList, editFormalin, fetchFormalinList } =
-        useContext(FormalinContext)!;
+    useContext(FormalinContext)!;
   const { data: session } = useSession();
   const username = session?.user?.username || "anonymous";
 
@@ -27,9 +28,21 @@ export default function OutboundPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [filteredCount, setFilteredCount] = useState(0); // 追加
+  const [modalMessage, setModalMessage] = useState<string>("");
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   // マウント時のフォーカスを select 要素に変更
   useEffect(() => selectRef.current?.focus(), []);
+
+  // ── モーダル表示時に効果音を鳴らす ──
+  useEffect(() => {
+    if (isModalOpen) {
+      const audio = new Audio("/se_amb01.wav"); // public/sounds/error.wav を想定
+      audio.play().catch((e) => {
+        console.warn("効果音の再生に失敗しました:", e);
+      });
+    }
+  }, [isModalOpen]);
 
   /* 入庫済み → 出庫済みへ変更された一覧 */
   const egressedList = formalinList.filter(
@@ -55,12 +68,17 @@ export default function OutboundPage() {
 
     /* バーコード解析 -------------------------------------------------- */
     const parsed = parseFormalinCode(code);
-    if (!parsed) { setErrorMessage("無効なコードです。"); return; }
+    if (!parsed) {
+      setModalMessage("無効なコードです。");
+      setIsModalOpen(true);
+      return;
+    }
 
-    const { serialNumber, boxNumber, lotNumber, productCode } = parsed;
+    const { serialNumber, boxNumber, lotNumber, productCode, size } = parsed;
 
     if (!selectedPlace) {
-      setErrorMessage("出庫先を選択してください。");
+      setModalMessage("出庫先を選択してください。");
+      setIsModalOpen(true);
       return;
     }
 
@@ -74,11 +92,13 @@ export default function OutboundPage() {
       );
 
       if (boxItems.length === 0) {
-        setErrorMessage("この箱は入庫されていません。");
+        setModalMessage("この箱は入庫されていません。");
+        setIsModalOpen(true);
         return;
       }
       if (boxItems.some((f) => f.status !== "入庫済み")) {
-        setErrorMessage("この箱の中に既に出庫済みのホルマリンがあります。");
+        setModalMessage("この箱の中に既に出庫済みのホルマリンがあります。");
+        setIsModalOpen(true);
         return;
       }
 
@@ -89,16 +109,25 @@ export default function OutboundPage() {
           case "FS0M20QA0W30S430": // 生検用 30ml
             return 300;
           case "4580161081521": return 100;
-          case "4580161081545": return 150;
+          case "4580161083907": return 150;
           default: return 0;
         }
       })();
       if (expected === 0) {
-        setErrorMessage("この規格は一括出庫に対応していません。");
+        setModalMessage("この規格は一括出庫に対応していません。");
+        setIsModalOpen(true);
         return;
       }
       if (boxItems.length !== expected) {
-        setErrorMessage("箱の内容数が想定と一致しません。");
+        setModalMessage("箱の内容数が想定と一致しません。");
+        setIsModalOpen(true);
+        return;
+      }
+
+      const count = boxItems.length;
+      const confirmMsg = `${selectedPlace} に ${size} を ${count} 個出庫します。よろしいですか？`;
+      if (!window.confirm(confirmMsg)) {
+        // キャンセル時は何もしない
         return;
       }
 
@@ -107,16 +136,16 @@ export default function OutboundPage() {
       try {
         const nowIso = new Date().toISOString();
         const items = boxItems.map((f) => ({
-          id        : f.id,
-          place     : selectedPlace,
-          updatedBy : username,
-          updatedAt : nowIso,
+          id: f.id,
+          place: selectedPlace,
+          updatedBy: username,
+          updatedAt: nowIso,
         }));
 
         const res = await fetch("/api/formalin/bulk-outbound", {
-          method : "POST",
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body   : JSON.stringify({ items }),
+          body: JSON.stringify({ items }),
         });
 
         if (!res.ok) {
@@ -124,7 +153,14 @@ export default function OutboundPage() {
           throw new Error(error ?? message ?? "一括出庫に失敗しました");
         }
 
-        await fetchFormalinList();          // ← 画面を更新
+        await fetchFormalinList();
+        try {
+          const successAudio = new Audio("/se_yma08.wav");
+          await successAudio.play();
+        } catch (e) {
+          console.warn("効果音の再生に失敗しました:", e);
+        }
+
         setErrorMessage("");
       } catch (err) {
         console.error(err);
@@ -140,37 +176,46 @@ export default function OutboundPage() {
     /* -------------- ② 単品バーコード ------------------------------- */
     const item = formalinList.find(
       (f) =>
-        f.key       === serialNumber &&
-        f.lotNumber === lotNumber   &&
-        f.boxNumber === boxNumber   &&
+        f.key === serialNumber &&
+        f.lotNumber === lotNumber &&
+        f.boxNumber === boxNumber &&
         f.productCode === productCode
     );
 
     if (!item) {
-      setErrorMessage("このホルマリンは入庫されていません。");
+      setModalMessage("このホルマリンは入庫されていません。");
+      setIsModalOpen(true);
       return;
     }
     if (item.status !== "入庫済み") {
-      setErrorMessage("このホルマリンは既に出庫済みか提出済みです。");
+      setModalMessage("このホルマリンは既に出庫済みか提出済みです。");
+      setIsModalOpen(true);
       return;
     }
 
     try {
       await editFormalin(item.id, {
-        status    : "出庫済み",
-        place     : selectedPlace,
-        timestamp : new Date(),
-        updatedBy : username,
-        updatedAt : new Date(),
-        oldStatus : item.status,
-        newStatus : "出庫済み",
-        oldPlace  : item.place,
-        newPlace  : selectedPlace,
+        status: "出庫済み",
+        place: selectedPlace,
+        timestamp: new Date(),
+        updatedBy: username,
+        updatedAt: new Date(),
+        oldStatus: item.status,
+        newStatus: "出庫済み",
+        oldPlace: item.place,
+        newPlace: selectedPlace,
       });
+      try {
+        const successAudio = new Audio("/se_yma08.wav");
+        await successAudio.play();
+      } catch (e) {
+        console.warn("効果音の再生に失敗しました:", e);
+      }
       setErrorMessage("");
     } catch (err) {
       console.error(err);
-      setErrorMessage("出庫処理中にエラーが発生しました。");
+      setModalMessage("出庫処理中にエラーが発生しました。");
+      setIsModalOpen(true);
     }
   };
 
@@ -214,11 +259,10 @@ export default function OutboundPage() {
           onKeyDown={handleScan}
           placeholder="二次元バーコードを読み込んでください"
           disabled={isLoading}
-          className={`text-2xl border border-gray-300 rounded p-2 w-1/3 ${
-            isLoading ? "bg-gray-100" : ""
-          }`}
+          className={`text-2xl border border-gray-300 rounded p-2 w-1/3 ${isLoading ? "bg-gray-100" : ""
+            }`}
         />
-        
+
         {/* 表示件数を右側に配置 */}
         <div className="ml-6 px-4 py-2 bg-blue-100 rounded-lg border-2 border-blue-300 shadow flex items-center">
           <span className="text-xl font-semibold text-blue-800">
@@ -253,12 +297,23 @@ export default function OutboundPage() {
           </span>
         </div>
         <div className="ml-10">
-          <FormalinTable 
+          <FormalinTable
             formalinList={egressedList}
             onFilteredCountChange={setFilteredCount}
           />
         </div>
       </div>
+      {/* モーダル表示 */}
+      <ErrorModal
+        visible={isModalOpen}
+        title="エラー"
+        message={modalMessage}
+        onClose={() => {
+          setIsModalOpen(false);
+          // モーダルを閉じたら再度入力欄にフォーカスを戻す
+          inputRef.current?.focus();
+        }}
+      />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { Formalin } from "../types/Formalin";
 import { parseFormalinCode } from "../utils/parseFormalinCode";
 import FormalinTable from "../components/FormalinTable";
 import { FormalinContext } from "../Providers/FormalinProvider";
+import ErrorModal from "../components/ErrorModal";
 
 export default function SubmissionPage() {
   // 1) NextAuth からユーザー名取得
@@ -34,6 +35,8 @@ export default function SubmissionPage() {
   const [shouldScale, setShouldScale] = useState(false);
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [submittedCount, setSubmittedCount] = useState<number>(0);
+  const [modalMessage, setModalMessage] = useState<string>("");
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   // ── マウント時＆在庫リスト更新時にフォーカス＆縮小判定 ──
   useEffect(() => {
@@ -44,6 +47,16 @@ export default function SubmissionPage() {
       setShouldScale(cw / pw < 0.5);
     }
   }, [formalinList]);
+
+  // ── モーダル表示時に効果音を鳴らす ──
+  useEffect(() => {
+    if (isModalOpen) {
+      const audio = new Audio("/se_amb01.wav"); // public/sounds/error.wav を想定
+      audio.play().catch((e) => {
+        console.warn("効果音の再生に失敗しました:", e);
+      });
+    }
+  }, [isModalOpen]);
 
   // '出庫済み' のリスト
   const pendingSubmissionList = formalinList.filter(
@@ -76,7 +89,9 @@ export default function SubmissionPage() {
     try {
       const parsed = parseFormalinCode(code);
       if (!parsed) {
-        setErrorMessage("無効なコードです。");
+        // モーダルを開く
+        setModalMessage("無効なコードです。もう一度読み込んでください。");
+        setIsModalOpen(true);
         return;
       }
       setErrorMessage("");
@@ -89,13 +104,15 @@ export default function SubmissionPage() {
           f.productCode === productCode
       );
       if (!existing) {
-        setErrorMessage("ホルマリンが見つかりません。入庫してください。");
+        setModalMessage("ホルマリンが見つかりません。入庫してください。");
+        setIsModalOpen(true);
         return;
       }
       if (existing.status !== "出庫済み") {
-        setErrorMessage(
+        setModalMessage(
           "このホルマリンは出庫済みの中にありません。出庫されていないか、既に提出済みです。"
         );
+        setIsModalOpen(true);
         return;
       }
 
@@ -111,6 +128,13 @@ export default function SubmissionPage() {
         oldPlace: existing.place,
         newPlace: "病理へ提出",
       });
+      // 成功時の効果音を再生
+      try {
+        const successAudio = new Audio("/se_yma08.wav");
+        await successAudio.play();
+      } catch (e) {
+        console.warn("効果音の再生に失敗しました:", e);
+      }
       setErrorMessage("");
       // context の fetch 側で自動更新されるなら省略可
       await fetchFormalinList(true);
@@ -177,6 +201,17 @@ export default function SubmissionPage() {
           </div>
         </div>
       </div>
+      {/* モーダル表示 */}
+      <ErrorModal
+        visible={isModalOpen}
+        title="エラー"
+        message={modalMessage}
+        onClose={() => {
+          setIsModalOpen(false);
+          // モーダルを閉じたら再度入力欄にフォーカスを戻す
+          inputRef.current?.focus();
+        }}
+      />
     </div>
   );
 }
