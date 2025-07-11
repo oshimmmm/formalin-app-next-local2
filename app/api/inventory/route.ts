@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 const SIZES = [
   "25ml中性緩衝",
   "生検用 30ml",
-  "3号 40ml"
+  "リンパ節用 40ml"
 ] as const;
 
 export async function POST(request: Request) {
@@ -272,70 +272,29 @@ export async function POST(request: Request) {
         return details;
       });
 
-      // ─── 6) 出庫詳細情報を取得 ───
-      const outboundDetails = await prisma.history.findMany({
-        where: {
-          updated_at: {
-            gte: start,
-            lte: end,
-          },
-          formalin: {
-            size: size,
-          },
-        },
-        orderBy: {
-          updated_at: "desc",
-        },
-        select: {
-          formalinId: true,
-          new_status: true,
-          formalin: {
-            select: {
-              lot_number: true,
-            },
-          },
-        },
-      }).then((results) => {
-        // 各 formalinId ごとに最新の履歴を保持
-        const latestStateMap = new Map<number, typeof results[0]>();
-
-        for (const record of results) {
-          if (record.formalinId === null) continue;
-          const fId = record.formalinId;
-          if (!latestStateMap.has(fId)) {
-            latestStateMap.set(fId, record);
-          }
-        }
-
-        // ロット番号ごとに new_status を集計
-        const outboundByLot = new Map<
-          string,
-          { outCount: number; submissionCount: number }
-        >();
-
-        Array.from(latestStateMap.values()).forEach((record) => {
-          const lotNumber = record.formalin?.lot_number || "不明";
-          if (!outboundByLot.has(lotNumber)) {
-            outboundByLot.set(lotNumber, { outCount: 0, submissionCount: 0 });
-          }
-
-          const counts = outboundByLot.get(lotNumber)!;
-          if (record.new_status === "出庫済み") {
-            counts.outCount++;
-          } else if (record.new_status === "提出済み") {
-            counts.submissionCount++;
-          }
-        });
-
-        return Array.from(outboundByLot.entries()).map(
-          ([lotNumber, counts]) => ({
-            lotNumber,
-            outCount: counts.outCount,
-            submissionCount: counts.submissionCount,
-          })
-        );
+      // ─── 6) 出庫詳細情報を “真の出庫イベント” でロットごとに集計 ───
+      const targetIds = Array.from(outboundMap.keys());
+      const formList = await prisma.formalin.findMany({
+        where: { id: { in: targetIds } },
+        select: { id: true, lot_number: true },
       });
+      const lotMap = new Map<number, string>(
+        formList.map(f => [f.id, f.lot_number ?? "不明"] as [number, string])
+      );
 
+      const detailsByLot = new Map<string, number>();
+      for (const [formalinId, cnt] of outboundMap) {
+        const lot = lotMap.get(formalinId) ?? "不明";
+        detailsByLot.set(lot, (detailsByLot.get(lot) || 0) + cnt);
+      }
+
+      const outboundDetails = Array.from(detailsByLot.entries()).map(
+        ([lotNumber, outCnt]) => ({
+          lotNumber,
+          outCount: outCnt,
+          submissionCount: 0, // 必要に応じて同様に集計してください
+        })
+      );
       // ─── 7) 結果をオブジェクトにまとめる ───
       inventoryBySize[size] = {
         inCount,
