@@ -6,14 +6,22 @@ export async function POST(req: Request) {
   if (!items?.length) return NextResponse.json({ error: "empty" }, { status: 400 });
 
   const now = new Date();
+  const ids = items.map((i) => i.id);
+  // 全件同じ出庫先なので、先頭要素から取得
+  const place = items[0].place;
 
   await prisma.$transaction([
-    ...items.map((i) =>
-      prisma.formalin.update({
-        where: { id: i.id },
-        data : { status: "出庫済み", place: i.place, timestamp: now },
-      })
-    ),
+    // ① まとめてステータス／場所／タイムスタンプを更新
+    prisma.formalin.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        status: "出庫済み",
+        place,
+        timestamp: now,
+      },
+    }),
+
+    // ② まとめて履歴テーブルにレコードを挿入
     prisma.history.createMany({
       data: items.map((i) => ({
         formalinId : i.id,
