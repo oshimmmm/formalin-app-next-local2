@@ -131,7 +131,7 @@ export async function POST(request: Request) {
     ];
 
     // SIZES 配列に従ってシートを追加
-    for (const size of ["25ml中性緩衝", "生検用 30ml", "3号 40ml"] as const) {
+    for (const size of ["25ml中性緩衝", "生検用 30ml", "リンパ節用 40ml"] as const) {
       // ① シート作成（シート名をサイズに）
       const sheet = workbook.addWorksheet(size);
 
