@@ -12,7 +12,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: formalin_next_db 
+      POSTGRES_DB: formalin_next_db_v2
     ports:
       - '5434:5432'
     volumes:
@@ -34,9 +34,9 @@ services:
       DB_HOST: formalin-next-db 
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD}
-      DB_DATABASE: formalin_next_db
+      DB_DATABASE: formalin_next_db_v2
       DOTENV_CONFIG_PATH: ".env.docker"
-      DATABASE_URL: "postgresql://postgres:${DB_PASSWORD}@formalin-next-db:5432/formalin_next_db"
+      DATABASE_URL: "postgresql://postgres:${DB_PASSWORD}@formalin-next-db:5432/formalin_next_db_v2"
     ports:
       - '3003:3003'
     depends_on:

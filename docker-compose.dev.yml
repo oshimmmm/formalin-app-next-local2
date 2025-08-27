@@ -18,7 +18,7 @@ services:
     environment:
       - NODE_ENV=development
       # host.docker.internal:5434 経由で本番 DB に接続
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@host.docker.internal:5434/formalin_next_db
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@host.docker.internal:5434/formalin_next_db_v2
       - HOST=0.0.0.0
       - PORT=3001
       - CHOKIDAR_USEPOLLING=true
