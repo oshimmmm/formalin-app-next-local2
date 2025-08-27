@@ -9,6 +9,7 @@ export interface Formalin {
     lotNumber: string;
     boxNumber: string;
     productCode: string;
+    returnBy: string; // 返却先
     histories: HistoryEntry[];  // 必須
   }
   
@@ -32,6 +33,7 @@ export interface RawFormalin {
   lot_number: string;
   box_number: string;
   productCode: string;
+  returnBy: string; // 返却先
   timestamp: string | null;
   expired: string | null;
   histories: RawHistoryEntry[]; // ここを RawHistoryEntry[] とする

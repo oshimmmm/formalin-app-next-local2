@@ -41,6 +41,7 @@ export async function POST(req: Request) {
       lotNumber,
       boxNumber,
       productCode,
+      returnBy,
       updatedBy,
       updatedAt,
       oldStatus,
@@ -60,7 +61,8 @@ export async function POST(req: Request) {
         expired: expired ? new Date(expired) : null,
         lot_number: lotNumber ?? null,
         box_number: boxNumber ?? null,
-        productCode: productCode ?? null
+        productCode: productCode ?? null,
+        returnBy: returnBy ?? "病理へ提出" // デフォルト値を設定
       },
     });
 

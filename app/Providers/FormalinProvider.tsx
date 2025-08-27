@@ -29,6 +29,7 @@ interface CreateFormalinPayload {
   lotNumber?: string;
   boxNumber?: string;
   productCode?: string;
+  returnBy?: string; // 返却先
   updatedBy?: string;
   updatedAt?: Date;
   oldStatus?: string;

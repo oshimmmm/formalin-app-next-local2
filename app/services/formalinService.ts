@@ -49,6 +49,7 @@ export async function addFormalinData(
     lotNumber?: string;
     boxNumber?: string;
     productCode?: string;
+    returnBy?: string; // 返却先
     // 履歴用
     updatedBy?: string;
     updatedAt?: Date;
@@ -83,6 +84,7 @@ export async function updateFormalinData(
     lotNumber?: string;
     boxNumber?: string;
     productCode?: string;
+    returnBy?: string; // 返却先
     // 履歴用
     updatedBy?: string;
     updatedAt?: Date;

@@ -1,100 +1,99 @@
-// This is your Prisma schema file, 
-// learn more about it in the docs: https://pris.ly/d/prisma-schema 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions? 
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init 
-generator client { 
-  provider = "prisma-client-js" 
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"] 
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
-datasource db { 
-  provider = "postgresql" 
-  url = env("DATABASE_URL") 
-} 
-// -------------------- 
-// 1) 試薬テーブル (Formalin) 
-// -------------------- 
-model Formalin { 
-id Int @id @default(autoincrement()) 
-key String? 
-place String? 
-status String? 
-expired DateTime? 
-timestamp DateTime? 
-size String? 
-lot_number String?
-box_number String?
-productCode String? 
-// 例: データ作成日時、更新日時を持たせる 
-createdAt DateTime @default(now()) 
-updatedAt DateTime @updatedAt 
-// Historyとの1対多関係 (Reagentが親) 
-histories History[]
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
-@@unique([lot_number, key, box_number, productCode]) // ここで複合ユニーク制約を設定
-} 
-// -------------------- 
-// 2) 履歴テーブル (History) 
-// -------------------- 
-model History { 
-id Int @id @default(autoincrement()) 
-key String? 
-updated_by String? 
-updated_at DateTime 
-old_status String? 
-new_status String? 
-old_place String? 
-new_place String? 
-// Reagentとの関係 (外部キー: reagentId) 
-// → productNumber自体でJOINするパターンも可能だが、よくあるRDB設計ではID参照が一般的 
-formalinId Int? 
-formalin Formalin? @relation(fields: [formalinId], references: [id]) 
-// 作成日時、更新日時 
-createdAt DateTime @default(now()) 
-updatedAt DateTime @updatedAt 
-} 
-// -------------------- 
-// 3) ユーザーテーブル (User) 
-// -------------------- 
-model User { 
-id String @id @default(cuid()) 
-username String @unique 
-password String 
-isAdmin Boolean @default(false) 
-email String? @unique 
-emailVerified DateTime? 
-// 作成日時、更新日時 
-createdAt DateTime @default(now()) 
-updatedAt DateTime @updatedAt 
-accounts Account[] 
-sessions Session[] 
-} 
-model Account { 
-id String @id @default(cuid()) 
-userId String 
-type String 
-provider String 
-providerAccountId String 
-refresh_token String? 
-access_token String? 
-expires_at Int? 
-token_type String? 
-scope String? 
-id_token String? 
-session_state String? 
-user User @relation(fields: [userId], references: [id], onDelete: Cascade) 
-@@unique([provider, providerAccountId]) 
-} 
-model Session { 
-id String @id @default(cuid()) 
-sessionToken String @unique 
-userId String 
-expires DateTime 
-user User @relation(fields: [userId], references: [id], onDelete: Cascade) 
-} 
-model VerificationToken { 
-identifier String 
-token String @unique 
-expires DateTime 
-@@unique([identifier, token]) 
+model Formalin {
+  id          Int       @id @default(autoincrement())
+  key         String?
+  place       String?
+  status      String?
+  expired     DateTime?
+  timestamp   DateTime?
+  size        String?
+  lot_number  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  box_number  String?
+  productCode String?
+  returnBy    String?
+  histories   History[]
+
+  @@unique([lot_number, key, box_number, productCode])
+
+  @@index([lot_number, box_number, productCode])
+  @@index([status])
+  @@index([place])
+  @@index([size])
+  @@index([expired])
+  @@index([timestamp])
+}
+
+model History {
+  id         Int       @id @default(autoincrement())
+  key        String?
+  updated_by String?
+  updated_at DateTime
+  old_status String?
+  new_status String?
+  old_place  String?
+  new_place  String?
+  formalinId Int?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  formalin   Formalin? @relation(fields: [formalinId], references: [id])
+
+  @@index([formalinId])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  username      String    @unique
+  password      String
+  isAdmin       Boolean   @default(false)
+  email         String?   @unique
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }

@@ -38,6 +38,9 @@ export default function SubmissionPage() {
   const [modalMessage, setModalMessage] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
+  // 提出元（プルダウン）
+  const [selectedReturnBy, setSelectedReturnBy] = useState<string>("");
+
   // ── マウント時＆在庫リスト更新時にフォーカス＆縮小判定 ──
   useEffect(() => {
     inputRef.current?.focus();
@@ -51,7 +54,7 @@ export default function SubmissionPage() {
   // ── モーダル表示時に効果音を鳴らす ──
   useEffect(() => {
     if (isModalOpen) {
-      const audio = new Audio("/se_amb01.wav"); // public/sounds/error.wav を想定
+      const audio = new Audio("/se_amb01.wav");
       audio.play().catch((e) => {
         console.warn("効果音の再生に失敗しました:", e);
       });
@@ -78,7 +81,7 @@ export default function SubmissionPage() {
     return f.timestamp >= startOfDay && f.timestamp < endOfDay;
   });
 
-  // ── バーコード読み取り処理（変更不要） ──
+  // ── バーコード読み取り処理 ──
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     const target = e.target as HTMLInputElement;
@@ -89,7 +92,6 @@ export default function SubmissionPage() {
     try {
       const parsed = parseFormalinCode(code);
       if (!parsed) {
-        // モーダルを開く
         setModalMessage("無効なコードです。もう一度読み込んでください。");
         setIsModalOpen(true);
         return;
@@ -116,11 +118,33 @@ export default function SubmissionPage() {
         return;
       }
 
-      // ステータス更新
+      const place = existing.place ?? "";
+      const isFromOR = place.startsWith("手術室"); // 手術室 or 手術室(○○) を包含
+      const hasSelection = selectedReturnBy.trim().length > 0;
+
+      // 手術室 → 提出元の選択が必須
+      if (isFromOR && !hasSelection) {
+        setModalMessage("提出元を選択してください（手術室からの返却は提出元の選択が必須です）。");
+        setIsModalOpen(true);
+        return;
+      }
+      // 手術室以外 → 提出元の選択は不可（空のみ許容）
+      if (!isFromOR && hasSelection) {
+        setModalMessage(
+          `このホルマリンは手術室ではなく「${place || "不明"}」に出庫されています。提出元は一番上部の空を選択してください。`
+        );
+        setIsModalOpen(true);
+        return;
+      }
+
+      // ステータス更新（returnBy をプルダウン選択値で上書き）
       await editFormalin(existing.id, {
         key: serialNumber,
         status: "提出済み",
         timestamp: new Date(),
+        // ↓ 追加：提出元（既存値があっても上書き）
+        returnBy: selectedReturnBy,
+        // 履歴用メタ
         updatedBy: username,
         updatedAt: new Date(),
         oldStatus: existing.status,
@@ -128,6 +152,7 @@ export default function SubmissionPage() {
         oldPlace: existing.place,
         newPlace: "病理へ提出",
       });
+
       // 成功時の効果音を再生
       try {
         const successAudio = new Audio("/se_yma08.wav");
@@ -136,7 +161,6 @@ export default function SubmissionPage() {
         console.warn("効果音の再生に失敗しました:", e);
       }
       setErrorMessage("");
-      // context の fetch 側で自動更新されるなら省略可
       await fetchFormalinList(true);
     } catch (err) {
       setErrorMessage(
@@ -148,6 +172,27 @@ export default function SubmissionPage() {
   return (
     <div>
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">提出する</h1>
+
+      {/* 提出元プルダウン（入力欄の上） */}
+      <div className="ml-10 mb-3 w-1/2">
+        <label className="block text-lg font-medium text-gray-700 mb-1">
+          ↓↓↓提出元（手術室からのホルマリンを提出処理するときは選択してください。）
+        </label>
+        <select
+          value={selectedReturnBy}
+          onChange={(e) => setSelectedReturnBy(e.target.value)}
+          className="text-xl border border-gray-300 rounded p-2 w-full bg-white"
+        >
+          <option value="">{""}</option>
+          <option value="手術室(消化器)">手術室(消化器)</option>
+          <option value="手術室(婦人科)">手術室(婦人科)</option>
+          <option value="手術室(泌尿器)">手術室(泌尿器)</option>
+          <option value="手術室(頭頸部)">手術室(頭頸部)</option>
+          <option value="手術室(整形)">手術室(整形)</option>
+          <option value="手術室(乳腺)">手術室(乳腺)</option>
+          <option value="手術室(呼吸器)">手術室(呼吸器)</option>
+        </select>
+      </div>
 
       <input
         type="text"
@@ -201,6 +246,7 @@ export default function SubmissionPage() {
           </div>
         </div>
       </div>
+
       {/* モーダル表示 */}
       <ErrorModal
         visible={isModalOpen}

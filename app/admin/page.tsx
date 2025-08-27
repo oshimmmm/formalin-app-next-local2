@@ -109,6 +109,10 @@ export default function AdminPage() {
     if (!target || !before) return;
     if (!window.confirm("本当に更新しますか？")) return;
 
+    // 「提出済み」→「出庫済み」に変更された場合は returnBy を空文字で上書き
+    const shouldClearReturnBy =
+      before.status === "提出済み" && target.status === "出庫済み";
+
     const now = new Date();
     const timestamp = new Date(
       Date.UTC(
@@ -132,7 +136,13 @@ export default function AdminPage() {
       newPlace: target.place,
       oldStatus: before.status,
       newStatus: target.status,
+      ...(shouldClearReturnBy ? { returnBy: "" } : {}), // ★ ここで空文字に
     });
+
+    // （任意）UI も即時反映したい場合はローカル状態も空文字にしておく:
+    // if (shouldClearReturnBy) {
+    //   setPosts(prev => prev.map(p => p.id === id ? { ...p, returnBy: "" } : p));
+    // }
   };
 
   return (

@@ -1,18 +1,26 @@
 // app/api/formalin/[id]/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
+import { Prisma } from "@prisma/client";
 
-/**
- * PUT /api/formalin/:id
- * Body: { key, place, status, timestamp, size, expired, lotNumber, updatedBy, updatedAt, ... }
- */
+// 文字列(ISO) → Date（不正なら undefined）
+const toDate = (v: unknown) =>
+  typeof v === "string" ? new Date(v) : v instanceof Date ? v : undefined;
+
 export async function PUT(
   request: Request,
-  context: unknown
+  { params }: { params: Promise<{ id: string }> } // ★ Next.js 15以降は Promise
 ) {
   try {
-    const { params } = context as { params: { id: string } };
-    const id = Number(params.id);
+    const { id: idStr } = await params;
+    const id = Number(idStr);
+    if (!Number.isFinite(id)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid id" },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const {
       key,
@@ -22,71 +30,111 @@ export async function PUT(
       size,
       expired,
       lotNumber,
+      boxNumber,
+      productCode,
+      returnBy,      // 未送信(undefined)なら未変更
       updatedBy,
       updatedAt,
       oldStatus,
       newStatus,
       oldPlace,
       newPlace,
-    } = body;
+    } = body ?? {};
 
-    await prisma.formalin.update({
+    const updated = await prisma.formalin.update({
       where: { id },
       data: {
-        key: key ?? undefined,
-        place: place ?? undefined,
-        status: status ?? undefined,
-        timestamp: timestamp ? new Date(timestamp) : undefined,
-        size: size ?? undefined,
-        expired: expired ? new Date(expired) : undefined,
-        lot_number: lotNumber ?? undefined,
+        key:         key        ?? undefined,
+        place:       place      ?? undefined,
+        status:      status     ?? undefined,
+        timestamp:   timestamp  ? toDate(timestamp) : undefined,
+        size:        size       ?? undefined,
+        expired:     expired    ? toDate(expired)   : undefined,
+        lot_number:  lotNumber  ?? undefined,
+        box_number:  boxNumber  ?? undefined,
+        productCode: productCode?? undefined,
+        returnBy:    returnBy === undefined ? undefined : returnBy,
       },
     });
 
+    // 履歴（任意）
     if (updatedBy && updatedAt) {
+      const ua = toDate(updatedAt);
+      if (!ua || isNaN(ua.getTime())) {
+        return NextResponse.json(
+          { success: false, message: "updatedAt is invalid" },
+          { status: 400 }
+        );
+      }
       await prisma.history.create({
         data: {
-          key: key,
-          formalinId: id,
+          key: updated.key ?? null,
+          formalinId: updated.id,
           updated_by: updatedBy,
-          updated_at: new Date(updatedAt),
+          updated_at: ua,
           old_status: oldStatus ?? "",
           new_status: newStatus ?? "",
-          old_place: oldPlace ?? "",
-          new_place: newPlace ?? "",
+          old_place:  oldPlace  ?? "",
+          new_place:  newPlace  ?? "",
         },
       });
     }
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: unknown) {
-    console.error(error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ success: false, message }, { status: 500 });
+    // Prismaの既知エラー（例：更新対象なし）
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return NextResponse.json(
+        { success: false, message: "Record to update not found" },
+        { status: 404 }
+      );
+    }
+    if (error instanceof Error) {
+      console.error("PUT /api/formalin/[id] error:", error.message);
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 500 }
+      );
+    }
+    console.error("PUT /api/formalin/[id] unknown error:", error);
+    return NextResponse.json(
+      { success: false, message: "Unknown error" },
+      { status: 500 }
+    );
   }
 }
 
-/**
- * DELETE /api/formalin/:id
- */
 export async function DELETE(
-  request: Request,
-  context: unknown
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { params } = context as { params: { id: string } };
-    const id = Number(params.id);
+    const { id: idStr } = await params;
+    const id = Number(idStr);
+    if (!Number.isFinite(id)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid id" },
+        { status: 400 }
+      );
+    }
 
-    // 1) history の削除
     await prisma.history.deleteMany({ where: { formalinId: id } });
-    // 2) formalin の削除
     await prisma.formalin.delete({ where: { id } });
 
-    // 204 (No Content) で応答
-    return NextResponse.json({}, { status: 204 });
+    // 204 はボディ無し
+    return new Response(null, { status: 204 });
   } catch (error: unknown) {
-    console.error(error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ success: false, message }, { status: 500 });
+    if (error instanceof Error) {
+      console.error("DELETE /api/formalin/[id] error:", error.message);
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 500 }
+      );
+    }
+    console.error("DELETE /api/formalin/[id] unknown error:", error);
+    return NextResponse.json(
+      { success: false, message: "Unknown error" },
+      { status: 500 }
+    );
   }
 }
