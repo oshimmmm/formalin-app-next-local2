@@ -95,6 +95,25 @@ export default function FormalinTable({
     lotNumber: Array.from(new Set(formalinList.map((item) => item.lotNumber))),
   };
 
+  // 決め打ち順
+  const SIZE_ORDER = ["生検用 30ml", "リンパ節用 40ml", "25ml中性緩衝"] as const;
+
+  // ランク（未知サイズは末尾）
+  const sizeRank = (s: string | undefined) => {
+    if (!s) return Number.MAX_SAFE_INTEGER;
+    const i = SIZE_ORDER.indexOf(s as (typeof SIZE_ORDER)[number]);
+    return i === -1 ? SIZE_ORDER.length + 1 : i;
+  };
+
+  const sizeOptions = useMemo(() => {
+    const others = Array.from(
+      new Set(formalinList.map(i => i.size).filter(Boolean) as string[])
+    )
+      .filter(s => !SIZE_ORDER.includes(s as (typeof SIZE_ORDER)[number]))
+      .sort((a, b) => a.localeCompare(b, "ja"));
+    return [...SIZE_ORDER, ...others];
+  }, [formalinList]);
+
   // フィルタ適用
   const filteredFormalinList = formalinList.filter((item) =>
     Object.entries(selectedFilters).every(([key, value]) => {
@@ -117,6 +136,18 @@ export default function FormalinTable({
   const sortedFormalinList = useMemo(() => {
     if (!sortConfig) return filteredFormalinList;
     return [...filteredFormalinList].sort((a, b) => {
+      // ★ 規格のときは決め打ち順
+      if (sortConfig.key === "size") {
+        const ra = sizeRank(a.size);
+        const rb = sizeRank(b.size);
+        if (ra !== rb) return sortConfig.direction === "asc" ? ra - rb : rb - ra;
+        // 同順位は日本語の文字列比較
+        const as = a.size ?? "";
+        const bs = b.size ?? "";
+        const comp = as.localeCompare(bs, "ja");
+        return sortConfig.direction === "asc" ? comp : -comp;
+      }
+
       let aValue: string | number | Date = a[sortConfig.key];
       let bValue: string | number | Date = b[sortConfig.key];
 
@@ -263,7 +294,7 @@ export default function FormalinTable({
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
               >
                 <option value="">すべて</option>
-                {uniqueValues.size.map((v) => (
+                {sizeOptions.map((v) => (
                   <option key={v} value={v}>
                     {v}
                   </option>
@@ -360,8 +391,8 @@ export default function FormalinTable({
               <td className="px-4 py-2">
                 {f.timestamp
                   ? f.timestamp.toLocaleString("ja-JP", {
-                      timeZone: "Asia/Tokyo",
-                    })
+                    timeZone: "Asia/Tokyo",
+                  })
                   : "--"}
               </td>
 
