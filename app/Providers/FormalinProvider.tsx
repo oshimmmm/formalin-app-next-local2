@@ -1,7 +1,6 @@
 "use client";
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useState } from "react";
 import { useSession } from "next-auth/react";
-
 import {
   getFormalinData,
   addFormalinData,
@@ -10,7 +9,6 @@ import {
 } from "../services/formalinService";
 import { Formalin } from "../types/Formalin";
 
-/* ---------- 型定義 ---------- */
 interface FormalinContextProps {
   formalinList: Formalin[];
   fetchFormalinList: (includeSubmitted?: boolean) => Promise<void>;
@@ -29,7 +27,7 @@ interface CreateFormalinPayload {
   lotNumber?: string;
   boxNumber?: string;
   productCode?: string;
-  returnBy?: string; // 返却先
+  returnBy?: string;
   updatedBy?: string;
   updatedAt?: Date;
   oldStatus?: string;
@@ -39,43 +37,37 @@ interface CreateFormalinPayload {
 }
 export type UpdateFormalinPayload = CreateFormalinPayload;
 
-/* ---------- Context ---------- */
 export const FormalinContext = createContext<FormalinContextProps | null>(null);
 
-/* ---------- Provider ---------- */
 export function FormalinProvider({ children }: { children: React.ReactNode }) {
   const { status } = useSession(); // loading | unauthenticated | authenticated
   const [formalinList, setFormalinList] = useState<Formalin[]>([]);
 
-  /* 一覧取得 */
-  const fetchFormalinList = React.useCallback(
-    async (includeSubmitted: boolean = false) => {
-      try {
-        const data = await getFormalinData(includeSubmitted);
-        setFormalinList(data);
-      } catch (err) {
-        console.error("Error fetching formalin data:", err);
-      }
-    },
-    []
-  );
-
-  /* 認証が確定してから 1 回だけ取得 */
-  useEffect(() => {
-    if (status === "authenticated") {
-      // 初期は includeSubmitted=false なので「提出済み以外」を取得
-      fetchFormalinList();
-    } else {
-      setFormalinList([]); // ログアウト時クリア
+  // 旧ページ向け（注意：/api/formalin の既定は1ページ100件）
+  const fetchFormalinList = React.useCallback(async (includeSubmitted = false) => {
+    try {
+      const data = await getFormalinData(includeSubmitted);
+      setFormalinList(data);
+    } catch (err) {
+      console.error("Error fetching formalin data:", err);
     }
-  }, [status, fetchFormalinList]);
+  }, []);
 
-  /* CRUD 操作（認証済み前提） */
+  // ✅ 自動フェッチはやめる（各ページが必要に応じて自前のload()を呼ぶ）
+  // useEffect(() => {
+  //   if (status === "authenticated") {
+  //     fetchFormalinList();
+  //   } else {
+  //     setFormalinList([]);
+  //   }
+  // }, [status, fetchFormalinList]);
+
   const createFormalin = async (p: CreateFormalinPayload) => {
     if (status !== "authenticated") return;
     try {
       await addFormalinData(p);
-      await fetchFormalinList();
+      // ✅ ここでの全件再フェッチはやめる（各ページがload()で再読込）
+      // await fetchFormalinList();
     } catch (err) {
       console.error("Error creating formalin:", err);
     }
@@ -85,7 +77,8 @@ export function FormalinProvider({ children }: { children: React.ReactNode }) {
     if (status !== "authenticated") return;
     try {
       await updateFormalinData(id, p);
-      await fetchFormalinList();
+      // ✅ 同上
+      // await fetchFormalinList();
     } catch (err) {
       console.error("Error updating formalin:", err);
     }
@@ -95,20 +88,20 @@ export function FormalinProvider({ children }: { children: React.ReactNode }) {
     if (status !== "authenticated") return;
     try {
       await deleteFormalinData(id);
-      await fetchFormalinList();
+      // ✅ 同上
+      // await fetchFormalinList();
     } catch (err) {
       console.error("Error deleting formalin:", err);
     }
   };
 
-  /* 読み込み中は何も描画しない（好みでローダーを置く） */
   if (status === "loading") return null;
 
   return (
     <FormalinContext.Provider
       value={{
-        formalinList,
-        fetchFormalinList,
+        formalinList,         // 旧ページ用（※最大100件に注意）
+        fetchFormalinList,    // 明示的に呼ぶ場合のみ
         createFormalin,
         editFormalin,
         removeFormalin,

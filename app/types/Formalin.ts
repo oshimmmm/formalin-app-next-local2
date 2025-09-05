@@ -51,7 +51,7 @@ export interface RawHistoryEntry {
 }
 
   // 新規登録時に使う型
-  export type NewFormalin = Omit<Formalin, 'id' | 'history'>;
+  export type NewFormalin = Omit<Formalin, 'id' | 'histories'>;
   
   // export interface Formalin {
   //   id: string; // FirestoreのドキュメントID
