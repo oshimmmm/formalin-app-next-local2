@@ -32,6 +32,7 @@ model Formalin {
   @@index([size])
   @@index([expired])
   @@index([timestamp])
+  @@index([status, timestamp, id], map: "Formalin_status_timestamp_id_idx")
 }
 
 model History {
