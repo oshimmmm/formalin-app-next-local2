@@ -1,150 +1,155 @@
+// app/submission/page.tsx
 "use client";
 
-import React, {
-  useContext,
-  useRef,
-  useEffect,
-  useState,
-  KeyboardEvent,
-} from "react";
+import React, { useContext, useEffect, useRef, useState, KeyboardEvent } from "react";
 import { useSession } from "next-auth/react";
 import { Formalin } from "../types/Formalin";
 import { parseFormalinCode } from "../utils/parseFormalinCode";
 import FormalinTable from "../components/FormalinTable";
-import { FormalinContext } from "../Providers/FormalinProvider";
 import ErrorModal from "../components/ErrorModal";
+import { getFormalinPage } from "../services/formalinService";
+import { FormalinContext } from "../Providers/FormalinProvider";
+
+function jstTodayRange(): { from: Date; to: Date } {
+  const now = new Date();
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now); // YYYY-MM-DD
+  const from = new Date(`${ymd}T00:00:00+09:00`);
+  const to   = new Date(`${ymd}T24:00:00+09:00`);
+  return { from, to };
+}
 
 export default function SubmissionPage() {
-  // 1) NextAuth からユーザー名取得
   const { data: session } = useSession();
   const username = session?.user?.username || "anonymous";
+  const { editFormalin } = useContext(FormalinContext)!;
 
-  // 2) Context から在庫リストと fetch, update を取得
-  const { formalinList, fetchFormalinList, editFormalin } =
-    useContext(FormalinContext)!;
-
-  // ── マウント時に「提出済みも含めて」全件取得 ──
-  useEffect(() => {
-    fetchFormalinList(true);
-  }, [fetchFormalinList]);
-
-  // UI 用 refs & state
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [errorMessage, setErrorMessage] = useState<string>("");
+
+  const [pendingRows, setPendingRows] = useState<Formalin[]>([]);
+  const [submittedRows, setSubmittedRows] = useState<Formalin[]>([]);
   const [shouldScale, setShouldScale] = useState(false);
+
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [submittedCount, setSubmittedCount] = useState<number>(0);
+
   const [modalMessage, setModalMessage] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
-  // 提出元（プルダウン）
   const [selectedReturnBy, setSelectedReturnBy] = useState<string>("");
+  const [pendingTotal, setPendingTotal] = useState<number>(0);
 
-  // ── マウント時＆在庫リスト更新時にフォーカス＆縮小判定 ──
+  // ★ 入力欄に確実にフォーカスを当てるヘルパ
+  const focusInput = () => requestAnimationFrame(() => inputRef.current?.focus());
+
+  // レイアウト縮小判定
   useEffect(() => {
-    inputRef.current?.focus();
     if (containerRef.current) {
       const cw = containerRef.current.offsetWidth;
       const pw = containerRef.current.parentElement?.offsetWidth || cw;
       setShouldScale(cw / pw < 0.5);
     }
-  }, [formalinList]);
+  }, [pendingRows, submittedRows]);
 
-  // ── モーダル表示時に効果音を鳴らす ──
+  // 効果音
   useEffect(() => {
     if (isModalOpen) {
       const audio = new Audio("/se_amb01.wav");
-      audio.play().catch((e) => {
-        console.warn("効果音の再生に失敗しました:", e);
-      });
+      audio.play().catch(() => {});
     }
   }, [isModalOpen]);
 
-  // '出庫済み' のリスト
-  const pendingSubmissionList = formalinList.filter(
-    (f: Formalin) => f.status === "出庫済み"
-  );
+  // ロード
+  const loadPending = async () => {
+    const res = await getFormalinPage(1, 200, { status: "出庫済み" });
+    setPendingRows(res.items);
+    setPendingTotal(res.total);
+  };
+  const loadSubmittedToday = async () => {
+    const { from, to } = jstTodayRange();
+    const res = await getFormalinPage(1, 200, {
+      status: "提出済み",
+      updatedAtFrom: from,
+      updatedAtTo: to,
+      includeSubmitted: true,
+    });
+    setSubmittedRows(res.items);
+  };
 
-  // 本日の日付範囲を算出
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1
-  );
+  // 初回フォーカス + 初回ロード
+  useEffect(() => {
+    focusInput();                         // ★ 初回表示時
+    void loadPending();
+    void loadSubmittedToday();
+  }, []);
 
-  // '提出済み' かつ 本日更新 のリスト
-  const submittedList = formalinList.filter((f: Formalin) => {
-    if (f.status !== "提出済み" || !f.timestamp) return false;
-    return f.timestamp >= startOfDay && f.timestamp < endOfDay;
-  });
+  // モーダルが閉じたときも保険でフォーカス復帰
+  useEffect(() => {
+    if (!isModalOpen) focusInput();       // ★ モーダル閉時
+  }, [isModalOpen]);
 
-  // ── バーコード読み取り処理 ──
+  // バーコード処理
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     const target = e.target as HTMLInputElement;
     const code = target.value.trim();
     target.value = "";
-    if (!code) return;
+    if (!code) {
+      focusInput();                       // ★ 空入力で即復帰
+      return;
+    }
 
     try {
       const parsed = parseFormalinCode(code);
       if (!parsed) {
         setModalMessage("無効なコードです。もう一度読み込んでください。");
         setIsModalOpen(true);
-        return;
+        return;                           // ★ フォーカスはモーダル閉時に戻る
       }
       setErrorMessage("");
+
       const { serialNumber, boxNumber, lotNumber, productCode } = parsed;
-      const existing = formalinList.find(
-        (f) =>
-          f.key === serialNumber &&
-          f.lotNumber === lotNumber &&
-          f.boxNumber === boxNumber &&
-          f.productCode === productCode
-      );
+      const existingRes = await getFormalinPage(1, 1, {
+        includeSubmitted: true,
+        lotNumber, boxNumber, productCode, key: serialNumber,
+      });
+      const existing = existingRes.items[0];
+
       if (!existing) {
         setModalMessage("ホルマリンが見つかりません。入庫してください。");
         setIsModalOpen(true);
         return;
       }
       if (existing.status !== "出庫済み") {
-        setModalMessage(
-          "このホルマリンは出庫済みの中にありません。出庫されていないか、既に提出済みです。"
-        );
+        setModalMessage("このホルマリンは出庫済みの中にありません。出庫されていないか、既に提出済みです。");
         setIsModalOpen(true);
         return;
       }
 
       const place = existing.place ?? "";
-      const isFromOR = place.startsWith("手術室"); // 手術室 or 手術室(○○) を包含
+      const isFromOR = place.startsWith("手術室");
       const hasSelection = selectedReturnBy.trim().length > 0;
 
-      // 手術室 → 提出元の選択が必須
       if (isFromOR && !hasSelection) {
         setModalMessage("提出元を選択してください（手術室からの返却は提出元の選択が必須です）。");
         setIsModalOpen(true);
         return;
       }
-      // 手術室以外 → 提出元の選択は不可（空のみ許容）
       if (!isFromOR && hasSelection) {
-        setModalMessage(
-          `このホルマリンは手術室ではなく「${place || "不明"}」に出庫されています。提出元は一番上部の空を選択してください。`
-        );
+        setModalMessage(`このホルマリンは手術室ではなく「${place || "不明"}」に出庫されています。提出元は空欄にしてください。`);
         setIsModalOpen(true);
         return;
       }
 
-      // ステータス更新（returnBy をプルダウン選択値で上書き）
       await editFormalin(existing.id, {
         key: serialNumber,
         status: "提出済み",
         timestamp: new Date(),
-        // ↓ 追加：提出元（既存値があっても上書き）
         returnBy: selectedReturnBy,
-        // 履歴用メタ
         updatedBy: username,
         updatedAt: new Date(),
         oldStatus: existing.status,
@@ -153,19 +158,14 @@ export default function SubmissionPage() {
         newPlace: "病理へ提出",
       });
 
-      // 成功時の効果音を再生
-      try {
-        const successAudio = new Audio("/se_yma08.wav");
-        await successAudio.play();
-      } catch (e) {
-        console.warn("効果音の再生に失敗しました:", e);
-      }
+      try { await new Audio("/se_yma08.wav").play(); } catch {}
       setErrorMessage("");
-      await fetchFormalinList(true);
+
+      await Promise.all([loadPending(), loadSubmittedToday()]); // 再読込
+      focusInput();                               // ★ 正常終了後にフォーカス復帰
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "提出処理中に不明なエラーが発生しました。"
-      );
+      setErrorMessage(err instanceof Error ? err.message : "提出処理中に不明なエラーが発生しました。");
+      focusInput();                               // ★ 例外時も復帰（モーダル未表示ケース）
     }
   };
 
@@ -173,7 +173,7 @@ export default function SubmissionPage() {
     <div>
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">提出する</h1>
 
-      {/* 提出元プルダウン（入力欄の上） */}
+      {/* 提出元プルダウン */}
       <div className="ml-10 mb-3 w-1/2">
         <label className="block text-lg font-medium text-gray-700 mb-1">
           ↓↓↓提出元（手術室からのホルマリンを提出処理するときは選択してください。）
@@ -191,6 +191,7 @@ export default function SubmissionPage() {
           <option value="手術室(整形)">手術室(整形)</option>
           <option value="手術室(乳腺)">手術室(乳腺)</option>
           <option value="手術室(呼吸器)">手術室(呼吸器)</option>
+          <option value="手術室(形成)">手術室(形成)</option>
         </select>
       </div>
 
@@ -214,23 +215,26 @@ export default function SubmissionPage() {
           transformOrigin: "top left",
         }}
       >
-        {/* 未提出枠 */}
+        {/* 未提出（出庫済み） */}
         <div style={{ width: "50%" }} className="bg-red-50 p-4 rounded-lg m-2">
           <div className="flex justify-between items-center mx-10 mt-8 mb-2">
             <h2 className="text-xl">未提出のホルマリン一覧（出庫済み）</h2>
             <span className="text-2xl font-bold text-red-600 bg-white px-4 py-2 rounded-lg shadow">
-              表示件数: {pendingCount}件
+              総件数: {pendingTotal}件
+              <span className="ml-2 text-base font-normal text-gray-700">
+                （この枠の表示件数: {pendingCount}件）
+              </span>
             </span>
           </div>
           <div className="ml-2">
             <FormalinTable
-              formalinList={pendingSubmissionList}
+              formalinList={pendingRows}
               onFilteredCountChange={setPendingCount}
             />
           </div>
         </div>
 
-        {/* 本日提出済み枠 */}
+        {/* 本日提出済み */}
         <div style={{ width: "50%" }} className="bg-green-50 p-4 rounded-lg m-2">
           <div className="flex justify-between items-center mx-10 mt-8 mb-2">
             <h2 className="text-xl">本日提出済みのホルマリン一覧</h2>
@@ -240,22 +244,21 @@ export default function SubmissionPage() {
           </div>
           <div className="ml-2">
             <FormalinTable
-              formalinList={submittedList}
+              formalinList={submittedRows}
               onFilteredCountChange={setSubmittedCount}
             />
           </div>
         </div>
       </div>
 
-      {/* モーダル表示 */}
+      {/* モーダル */}
       <ErrorModal
         visible={isModalOpen}
         title="エラー"
         message={modalMessage}
         onClose={() => {
           setIsModalOpen(false);
-          // モーダルを閉じたら再度入力欄にフォーカスを戻す
-          inputRef.current?.focus();
+          focusInput();                // ★ モーダル閉じたら入力欄へ
         }}
       />
     </div>

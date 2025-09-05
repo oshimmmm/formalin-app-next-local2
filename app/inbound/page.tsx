@@ -1,117 +1,119 @@
 "use client";
 
-import React, {
-  useContext,
-  useRef,
-  useEffect,
-  useState,
-  KeyboardEvent,
-} from "react";
+import React, { useEffect, useMemo, useRef, useState, KeyboardEvent, useContext } from "react";
 import { useSession } from "next-auth/react";
 import FormalinTable from "@/app/components/FormalinTable";
-import { FormalinContext } from "@/app/Providers/FormalinProvider";
 import { Formalin } from "@/app/types/Formalin";
 import { parseFormalinCode } from "@/app/utils/parseFormalinCode";
+import { getFormalinPage, getFormalinCount } from "@/app/services/formalinService";
+import { FormalinContext } from "@/app/Providers/FormalinProvider";
 
 export default function InboundClient() {
-  /* ------------------------------------------------------------------ */
-  /* セッション・コンテキスト                                           */
-  /* ------------------------------------------------------------------ */
+  /* セッション / CRUD (一覧は使わない) */
   const { data: session } = useSession();
   const username = session?.user?.username || "anonymous";
+  const { createFormalin } = useContext(FormalinContext)!;
 
-  const { formalinList, createFormalin, fetchFormalinList } = useContext(FormalinContext)!;
-
-  /* ------------------------------------------------------------------ */
-  /* ローカル state                                                     */
-  /* ------------------------------------------------------------------ */
+  /* 画面状態 */
+  const [rows, setRows] = useState<Formalin[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);          // 一括入庫中フラグ
   const inputRef = useRef<HTMLInputElement>(null);
 
-  /* フォーカスは初回マウント時に自動付与 */
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+  // ページャ（必要なら UI を追加）
+  const [page] = useState(1);
+  const [pageSize] = useState(200);
 
-  /* 入庫済みのみ抽出 */
-  const ingressedList = formalinList.filter(
-    (f: Formalin) => f.status === "入庫済み"
-  );
+  // 在庫カウンタ（正確値を DB から取得）
+  const [biopsyCount, setBiopsyCount] = useState(0); // 生検用 30ml
+  const [lymphCount, setLymphCount] = useState(0);   // リンパ節用 40ml
+  const [bkCount, setBkCount] = useState(0);         // 25ml中性緩衝
 
-  // ── ここで各サイズの件数を算出 ──
-  const biopsyCount = ingressedList.filter(
-    (f) => f.size === "生検用 30ml"
-  ).length;
-  const lymphCount = ingressedList.filter(
-    (f) => f.size === "リンパ節用 40ml"
-  ).length;
-  const bkCount = ingressedList.filter(
-    (f) => f.size === "25ml中性緩衝"
-  ).length;
+  // 初期フォーカス
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
-  /* ------------------------------------------------------------------ */
-  /* ENTER 押下時のメインハンドラ                                       */
-  /* ------------------------------------------------------------------ */
+  const load = async (p = page) => {
+    setLoading(true);
+    try {
+      const res = await getFormalinPage(p, pageSize, { status: "入庫済み" });
+      setRows(res.items);
+      setTotal(res.total);
+
+      const [c1, c2, c3] = await Promise.all([
+        getFormalinCount({ status: "入庫済み", size: "生検用 30ml" }),
+        getFormalinCount({ status: "入庫済み", size: "リンパ節用 40ml" }),
+        getFormalinCount({ status: "入庫済み", size: "25ml中性緩衝" }),
+      ]);
+      setBiopsyCount(c1);
+      setLymphCount(c2);
+      setBkCount(c3);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(1); }, []);
+
+  const ingressedList = useMemo(() => rows, [rows]);
+
+  const expectedByProductCode = (productCode: string): number => {
+    switch (productCode) {
+      case "4580161081859":
+      case "FS0M20QA0W30S430": // 生検用 30ml
+        return 300;
+      case "4580161081521":   // 25 ml 中性緩衝
+        return 100;
+      case "4580161083907":   // 3号 40 ml
+        return 150;
+      default:
+        return 0;
+    }
+  };
+
+  /* バーコード処理 */
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
-
     const target = e.target as HTMLInputElement;
     const code = target.value.trim();
-    target.value = "";                               // 入力欄は即クリア
+    target.value = "";
 
-    if (!code || isLoading) {
-      if (isLoading) setErrorMessage("処理中です。しばらくお待ちください。");
+    if (!code || loading) {
+      if (loading) setErrorMessage("処理中です。しばらくお待ちください。");
       return;
     }
 
-    /* ① バーコード解析 ------------------------------------------------ */
     const parsed = parseFormalinCode(code);
     if (!parsed) {
       setErrorMessage("無効なコードです。");
       return;
     }
+    setErrorMessage("");
 
     const { serialNumber, boxNumber, size, expirationDate, lotNumber, productCode } = parsed;
-    setErrorMessage("");                              // 解析成功でエラークリア
 
-    /* ② 「0000」=箱バーコードの場合 ---------------------------------- */
+    // ① 箱バーコード
     if (serialNumber === "0000") {
-      /* 同じ箱が既に混在していないか確認 */
-      const dup = formalinList.find(
-        (f) => f.lotNumber === lotNumber &&
-          f.boxNumber === boxNumber &&
-          f.productCode === productCode
-      );
-      if (dup) {
+      const expected = expectedByProductCode(productCode);
+      if (expected === 0) {
+        setErrorMessage("この箱バーコードは一括登録に対応していません。");
+        return;
+      }
+
+      // 既存データ混入チェック（提出済み含む全体）
+      const existingTotal = await getFormalinCount({
+        includeSubmitted: true,
+        lotNumber, boxNumber, productCode,
+      });
+      if (existingTotal > 0) {
         setErrorMessage("この箱は既に入庫済みか、一部が入庫されています。");
         return;
       }
 
-      /* 製品コードごとの入庫本数決定 */
-      let registrationCount = 0;
-      switch (productCode) {
-        case "4580161081859":
-        case "FS0M20QA0W30S430":   // 30 ml
-          registrationCount = 300;
-          break;
-        case "4580161081521":   // 25 ml 中性緩衝
-          registrationCount = 100;
-          break;
-        case "4580161083907":   // 3号 40 ml
-          registrationCount = 150;
-          break;
-        default:
-          setErrorMessage("この箱バーコードは一括登録に対応していません。");
-          return;
-      }
-
-      /* ③ 一括インポート API へ -------------------------------------- */
-      setIsLoading(true);
+      // 一括インポート
       try {
-        /* 送信ペイロードを生成 */
         const nowIso = new Date().toISOString();
-        const items = Array.from({ length: registrationCount }, (_, i) => ({
+        const items = Array.from({ length: expected }, (_, i) => ({
           key: (i + 1).toString().padStart(4, "0"),
           place: "病理在庫",
           status: "入庫済み",
@@ -135,34 +137,24 @@ export default function InboundClient() {
           body: JSON.stringify({ items }),
         });
 
-        await fetchFormalinList();
-
         if (!res.ok) {
-          const { error, message } = await res.json().catch(() => ({}));
+          const { error, message } = await res.json().catch(() => ({} as { error?: string; message?: string }));
           throw new Error(error ?? message ?? "登録に失敗しました");
         }
 
-        /* 必要なら SWR mutate や Context 再取得をここで行う */
-        // 例: mutate("/api/formalin");
+        await load(1); // ★ 再読込
       } catch (err) {
-        setErrorMessage(
-          err instanceof Error ? err.message : "不明なエラーが発生しました"
-        );
-      } finally {
-        setIsLoading(false);
+        setErrorMessage(err instanceof Error ? err.message : "不明なエラーが発生しました");
       }
-      return;                                         // 通常処理へは進まない
+      return;
     }
 
-    /* ④ 通常 4 桁シリアルの個別入庫 -------------------------------- */
-    const dup = formalinList.find(
-      (f) =>
-        f.key === serialNumber &&
-        f.lotNumber === lotNumber &&
-        f.boxNumber === boxNumber &&
-        f.productCode === productCode
-    );
-
+    // ② 個別入庫：重複チェック（全ステータス対象）
+    const dupRes = await getFormalinPage(1, 1, {
+      includeSubmitted: true,
+      lotNumber, boxNumber, productCode, key: serialNumber,
+    });
+    const dup = dupRes.items[0];
     if (dup) {
       switch (dup.status) {
         case "入庫済み": setErrorMessage("このホルマリンは既に入庫済です。"); break;
@@ -173,7 +165,7 @@ export default function InboundClient() {
       return;
     }
 
-    /* createFormalin は 1 件ずつの登録用コンテキストメソッド */
+    // 登録
     try {
       await createFormalin({
         key: serialNumber,
@@ -192,72 +184,54 @@ export default function InboundClient() {
         oldPlace: "",
         newPlace: "病理在庫",
       });
-      setErrorMessage("");
+      await load(1); // ★ 再読込
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "登録に失敗しました"
-      );
+      setErrorMessage(err instanceof Error ? err.message : "登録に失敗しました");
     }
   };
 
-  /* ------------------------------------------------------------------ */
-  /* JSX                                                                */
-  /* ------------------------------------------------------------------ */
   return (
     <div>
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">入庫する</h1>
 
+      {/* 在庫数（正確） */}
       <div className="ml-10 mb-6 space-x-8 text-lg">
         <span>生検用：<strong>{biopsyCount}</strong>個</span>
         <span>リンパ節用：<strong>{lymphCount}</strong>個</span>
-        <span
-          className={`px-2 py-1 rounded ${bkCount <= 25 ? "bg-red-200" : ""
-            }`}
-        >
+        <span className={`px-2 py-1 rounded ${bkCount <= 25 ? "bg-red-200" : ""}`}>
           BK用：<strong>{bkCount}</strong>個
         </span>
       </div>
-
-      {/* BK用が25個以下なら注意メッセージ表示 */}
       {bkCount <= 25 && (
-        <p className="ml-10 mb-4 text-red-700 font-semibold">
-          BK用ホルマリンの個数が25個以下の場合は発注してください
-        </p>
+        <p className="ml-10 mb-4 text-red-700 font-semibold">BK用ホルマリンの個数が25個以下の場合は発注してください</p>
       )}
 
-      {/* 入力フィールド ------------------------------------------------ */}
+      {/* 入力 */}
       <div className="relative ml-10">
         <input
           type="text"
           ref={inputRef}
           onKeyDown={handleScan}
           placeholder="二次元バーコードを読み込んでください"
-          disabled={isLoading}
-          className={`text-2xl border border-gray-300 rounded p-2 w-1/3 ${isLoading ? "bg-gray-100" : ""
-            }`}
+          disabled={loading}
+          className={`text-2xl border border-gray-300 rounded p-2 w-1/3 ${loading ? "bg-gray-100" : ""}`}
         />
-
-        {/* ローディングオーバーレイ */}
-        {isLoading && (
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2
-                          bg-black bg-opacity-70 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+        {loading && (
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black bg-opacity-70 text-white px-6 py-3 rounded-lg shadow-lg z-50">
             <div className="flex items-center space-x-3">
-              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-              <span className="text-lg font-semibold">一括入庫中...</span>
+              <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+              <span className="text-lg font-semibold">読み込み中...</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* エラーメッセージ */}
       {errorMessage && <p className="text-red-500 ml-10 mt-2">{errorMessage}</p>}
 
-      {/* 一覧テーブル -------------------------------------------------- */}
+      {/* 一覧（ページネーションUIが必要なら追加） */}
       <h2 className="text-xl mx-10 mt-8 mb-2">
-        入庫済みホルマリン一覧
-        <span className="ml-2 text-gray-600">({ingressedList.length}個)</span>
+        入庫済みホルマリン一覧 <span className="ml-2 text-gray-600">（全 {total} 個）</span>
       </h2>
-
       <div className="ml-10 bg-blue-50">
         <FormalinTable formalinList={ingressedList} />
       </div>
