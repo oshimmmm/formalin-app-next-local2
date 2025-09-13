@@ -23,6 +23,9 @@ export default function InventoryPage() {
   const [error, setError] = useState<string>("");
   const [inventoryData, setInventoryData] = useState<InventoryDataBySizeType | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const [isChecking, setIsChecking] = useState(false);
+  const [isDownloadingDetails, setIsDownloadingDetails] = useState(false);
+  const [isDownloadingSummary, setIsDownloadingSummary] = useState(false);
 
   const handleCheck = async () => {
     if (!startDate || !endDate) {
@@ -75,8 +78,48 @@ export default function InventoryPage() {
     }
   };
 
+  const handleDownloadOutboundDetailsSummary = async () => {
+    if (!startDate || !endDate) {
+      setError("開始日と終了日を入力してください");
+      return;
+    }
+    setError("");
+    try {
+      const response = await fetch("/api/inventory/outbound-details/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startDate, endDate }),
+      });
+      if (!response.ok) throw new Error("出庫詳細まとめの取得に失敗しました");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `outbound-details-summary_${startDate}_${endDate}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      setError("出庫詳細まとめのダウンロード中にエラーが発生しました");
+    }
+  };
+
   return (
     <div className="min-h-screen p-8">
+      {/* 処理中オーバーレイ（画面中央表示） */}
+      {(isChecking || isDownloadingDetails || isDownloadingSummary) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 print:hidden">
+          <div className="bg-white rounded-lg shadow px-6 py-4 text-center">
+            <div className="flex items-center gap-3 justify-center">
+              <div className="h-5 w-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+              <div className="text-gray-800 font-medium">
+                {isChecking ? "計算中…" : "作成中…"}
+              </div>
+            </div>
+            <div className="mt-1 text-xs text-gray-500">画面を閉じずにお待ちください</div>
+          </div>
+        </div>
+      )}
       {/* 印刷時に非表示にする入力フォーム */}
       <div className="print:hidden">
         <h1 className="text-3xl font-bold mb-4">在庫確認</h1>
@@ -103,16 +146,25 @@ export default function InventoryPage() {
         {error && <p className="text-red-500 mb-4">{error}</p>}
         <div className="flex gap-2 mb-4">
           <button
-            onClick={handleCheck}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+            onClick={async () => { if (isChecking) return; setIsChecking(true); try { await handleCheck(); } finally { setIsChecking(false); } }}
+            disabled={isChecking}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             入出庫数確認
           </button>
           <button
-            onClick={handleDownloadOutboundDetails}
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors"
+            onClick={async () => { if (isDownloadingDetails) return; setIsDownloadingDetails(true); try { await handleDownloadOutboundDetails(); } finally { setIsDownloadingDetails(false); } }}
+            disabled={isDownloadingDetails}
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             出庫詳細Excelダウンロード
+          </button>
+          <button
+            onClick={async () => { if (isDownloadingSummary) return; setIsDownloadingSummary(true); try { await handleDownloadOutboundDetailsSummary(); } finally { setIsDownloadingSummary(false); } }}
+            disabled={isDownloadingSummary}
+            className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            出庫詳細まとめVerダウンロード
           </button>
         </div>
       </div>
