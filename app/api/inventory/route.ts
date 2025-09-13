@@ -12,11 +12,9 @@ export async function POST(request: Request) {
   try {
     const { startDate, endDate } = await request.json();
 
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    // 入力（日付文字�E�E��EJST想定、EST日付篁E��をUTCに変換して検索
+    const start = new Date(`${startDate}T00:00:00+09:00`);
+    const end = new Date(`${endDate}T23:59:59.999+09:00`);
 
     const inventoryBySize: InventoryDataBySizeType = {};
 

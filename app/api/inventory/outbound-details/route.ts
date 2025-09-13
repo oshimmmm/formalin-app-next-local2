@@ -18,11 +18,9 @@ export async function POST(request: Request) {
   try {
     const { startDate, endDate } = await request.json();
 
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    // JSTの日付範囲をUTCに変換して検索（DBはUTC相当で格納）
+    const start = new Date(`${startDate}T00:00:00+09:00`);
+    const end = new Date(`${endDate}T23:59:59.999+09:00`);
 
     // 全formalinIdsを取得
     const allFormalinIds = await prisma.formalin.findMany({
@@ -121,7 +119,7 @@ export async function POST(request: Request) {
 
     // Excelワークブック作成
     const workbook = new ExcelJS.Workbook();
-    // 列定義（共通）
+    // 列定義（共通）: 元の詳細版（1本1行）
     const columns = [
       { header: "ホルマリンKey", key: "combinedKey", width: 20 },
       { header: "規格", key: "size", width: 12 },
@@ -145,12 +143,12 @@ export async function POST(request: Request) {
       titleCell.font = { size: 20, bold: true };
       titleCell.alignment = { horizontal: "left" };
 
-      // ④ このサイズの出庫レコードだけ取り出し
+      // ④ このサイズの出庫レコードだけ取り出し、時系列で並べる
       const rows = validOutbounds
         .filter((r) => r.formalin?.size === size)
         .sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
 
-      // ⑤ データ行を 3 行目以降に追加
+      // ⑤ データ行を 3 行目以降に追加（詳細版）
       for (const record of rows) {
         sheet.addRow({
           combinedKey: record.formalin
