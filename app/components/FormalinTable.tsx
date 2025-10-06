@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { Formalin } from "../types/Formalin";
+import { isJapaneseHoliday } from "../utils/jpHolidays";
 
 type SortableKey =
   | "key"
@@ -19,6 +20,8 @@ interface FormalinTableProps {
   showHistoryButton?: boolean;
   onHistoryClick?: (key: number) => void;
   onFilteredCountChange?: (count: number) => void;
+  // Homeのみで使用予定日を表示するためのフラグ
+  showScheduledDate?: boolean;
   // ここから追加
   editable?: boolean;
   places?: string[];
@@ -35,6 +38,7 @@ export default function FormalinTable({
   showHistoryButton = false,
   onHistoryClick,
   onFilteredCountChange,
+  showScheduledDate = false,
   // 新規追加の props
   editable = false,
   places = [],
@@ -194,6 +198,37 @@ export default function FormalinTable({
     return "";
   };
 
+  // 使用予定日の計算
+  const calcNextBusinessDay = (
+    base: Date,
+    opts?: { excludeTueThu?: boolean }
+  ): Date => {
+    const d = new Date(base);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 1); // 翌日から探索
+    while (true) {
+      const dow = d.getDay(); // 0=Sun, 6=Sat
+      const isWeekend = dow === 0 || dow === 6;
+      const isTueThu = opts?.excludeTueThu && (dow === 2 || dow === 4);
+      if (!isWeekend && !isTueThu && !isJapaneseHoliday(d)) return d;
+      d.setDate(d.getDate() + 1);
+    }
+  };
+
+  const getScheduledDateText = (place: string, ts?: Date | null): string => {
+    if (!ts) return "--";
+    const groupA = ["内視鏡", "放診", "頭頸部", "婦人科"];
+    if (groupA.includes(place)) {
+      const next = calcNextBusinessDay(ts);
+      return next.toLocaleDateString("ja-JP");
+    }
+    if (place === "泌尿器") {
+      const next = calcNextBusinessDay(ts, { excludeTueThu: true });
+      return next.toLocaleDateString("ja-JP");
+    }
+    return "--";
+  };
+
   // カウント通知
   useEffect(() => {
     onFilteredCountChange?.(sortedFormalinList.length);
@@ -282,6 +317,12 @@ export default function FormalinTable({
                 ))}
               </select>
             </th>
+
+            {showScheduledDate && (
+              <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
+                使用予定日
+              </th>
+            )}
 
             {/* 規格 */}
             <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
@@ -395,6 +436,12 @@ export default function FormalinTable({
                   })
                   : "--"}
               </td>
+
+              {showScheduledDate && (
+                <td className="px-4 py-2">
+                  {getScheduledDateText(f.place, f.timestamp)}
+                </td>
+              )}
 
               {/* 規格 */}
               <td className="px-4 py-2">{f.size}</td>

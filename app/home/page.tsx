@@ -159,7 +159,7 @@ export default function HomePage() {
       </div>
 
       <div className="ml-10">
-        <FormalinTable formalinList={viewList} />
+        <FormalinTable formalinList={viewList} showScheduledDate />
       </div>
     </div>
   );
