@@ -13,6 +13,7 @@ export default function HomePage() {
   const [total, setTotal] = useState(0);
   const [rows, setRows] = useState<Formalin[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filteredCount, setFilteredCount] = useState(0);
 
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchRows, setSearchRows] = useState<Formalin[]>([]);
@@ -134,6 +135,9 @@ export default function HomePage() {
               <option value={200}>200</option>
               <option value={300}>300</option>
             </select>
+            <span className="ml-4 text-lg text-gray-600">
+              表示件数: {filteredCount}件
+            </span>
           </>
         )}
 
@@ -159,7 +163,11 @@ export default function HomePage() {
       </div>
 
       <div className="ml-10">
-        <FormalinTable formalinList={viewList} showScheduledDate />
+        <FormalinTable
+          formalinList={viewList}
+          showScheduledDate
+          onFilteredCountChange={setFilteredCount}
+        />
       </div>
     </div>
   );
