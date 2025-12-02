@@ -192,6 +192,7 @@ export default function SubmissionPage() {
           <option value="手術室(乳腺)">手術室(乳腺)</option>
           <option value="手術室(呼吸器)">手術室(呼吸器)</option>
           <option value="手術室(形成)">手術室(形成)</option>
+          <option value="手術室(脳外)">手術室(脳外)</option>
         </select>
       </div>
 
