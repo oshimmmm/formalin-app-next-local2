@@ -7,9 +7,11 @@ import { parseFormalinCode } from "../utils/parseFormalinCode";
 import { Formalin } from "../types/Formalin";
 import { getFormalinPage } from "../services/formalinService";
 
+const SIMPLE_EXCLUDED_PLACES = ["手術室", "血液(マルク用)", "病理"];
+
 export default function HomePage() {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize, setPageSize] = useState(300);
   const [total, setTotal] = useState(0);
   const [rows, setRows] = useState<Formalin[]>([]);
   const [loading, setLoading] = useState(false);
@@ -20,6 +22,7 @@ export default function HomePage() {
 
   const [searchCode, setSearchCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [viewMode, setViewMode] = useState<"simple" | "detail">("simple");
 
   // ★ 全ページ通して古い順（timestamp ASC, NULLS LAST）
   const load = useCallback(async () => {
@@ -77,11 +80,20 @@ export default function HomePage() {
     }
   };
 
-  // 表示用（検索時はそのまま、通常は 25ml中性緩衝 を除外）
+  const isSimpleMode = viewMode === "simple";
+
+  // 表示用（検索時はそのまま、通常は 25ml中性緩衝 を除外。簡易Verは更に絞り込み）
   const viewList = useMemo(() => {
     if (isSearchActive) return searchRows;
-    return rows.filter((f) => f.size !== "25ml中性緩衝");
-  }, [isSearchActive, rows, searchRows]);
+    const base = rows.filter((f) => f.size !== "25ml中性緩衝");
+    if (isSimpleMode) {
+      return base.filter(
+        (f) =>
+          f.size === "生検用 30ml" && !SIMPLE_EXCLUDED_PLACES.includes(f.place)
+      );
+    }
+    return base;
+  }, [isSearchActive, isSimpleMode, rows, searchRows]);
 
   const effectiveTotal = isSearchActive ? 1 : total;
   const totalPages = Math.max(1, Math.ceil(effectiveTotal / pageSize));
@@ -138,6 +150,31 @@ export default function HomePage() {
             <span className="ml-4 text-lg text-gray-600">
               表示件数: {filteredCount}件
             </span>
+            <div className="ml-4 flex items-center gap-2">
+              <span className="text-sm text-gray-600">表示モード</span>
+              <button
+                type="button"
+                onClick={() => setViewMode("simple")}
+                className={`px-3 py-1 rounded border text-sm ${
+                  isSimpleMode
+                    ? "bg-blue-500 text-white border-blue-500"
+                    : "bg-white text-gray-700 border-gray-300"
+                }`}
+              >
+                簡易Ver
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("detail")}
+                className={`px-3 py-1 rounded border text-sm ${
+                  viewMode === "detail"
+                    ? "bg-blue-500 text-white border-blue-500"
+                    : "bg-white text-gray-700 border-gray-300"
+                }`}
+              >
+                詳細Ver
+              </button>
+            </div>
           </>
         )}
 
