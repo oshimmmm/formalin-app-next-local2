@@ -217,7 +217,7 @@ export default function FormalinTable({
 
   const getScheduledDateText = (place: string, ts?: Date | null): string => {
     if (!ts) return "--";
-    const groupA = ["内視鏡", "放診", "頭頸部", "婦人科"];
+    const groupA = ["内視鏡", "放診", "頭頸部", "婦人科", "外科"];
     if (groupA.includes(place)) {
       const next = calcNextBusinessDay(ts);
       return next.toLocaleDateString("ja-JP");
