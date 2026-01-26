@@ -128,8 +128,16 @@ export async function POST(request: Request) {
       { header: "出庫先", key: "new_place", width: 15 },
     ];
 
+    const sizes = ["25ml中性緩衝", "生検用 30ml", "リンパ節用 40ml"] as const;
+    const titleBySize: Record<(typeof sizes)[number], string> = {
+      "25ml中性緩衝": "出庫管理台帳（集計）25ml中性緩衝ホルマリン",
+      "生検用 30ml": "出庫管理台帳（集計）生検用 30mlホルマリン",
+      "リンパ節用 40ml": "出庫管理台帳（集計）リンパ節用 40mlホルマリン",
+    };
+    const noteText = "※数量は、出庫した実績回数です";
+
     // SIZES 配列に従ってシートを追加
-    for (const size of ["25ml中性緩衝", "生検用 30ml", "リンパ節用 40ml"] as const) {
+    for (const size of sizes) {
       // ① シート作成（シート名をサイズに）
       const sheet = workbook.addWorksheet(size);
 
@@ -137,10 +145,10 @@ export async function POST(request: Request) {
       sheet.columns = columns;
 
       // ③ タイトル行を先頭に挿入
-      sheet.insertRow(1, ["出庫管理台帳"]);
+      sheet.insertRow(1, [titleBySize[size]]);
       sheet.mergeCells("A1:E1");
       const titleCell = sheet.getCell("A1");
-      titleCell.font = { size: 20, bold: true };
+      titleCell.font = { size: 15, bold: true };
       titleCell.alignment = { horizontal: "left" };
 
       // ④ このサイズの出庫レコードだけ取り出し、時系列で並べる
@@ -162,18 +170,22 @@ export async function POST(request: Request) {
       }
 
       // ⑥ 2 行目以降にだけ罫線を適用
-      sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-        if (rowNumber >= 2) {
-          row.eachCell((cell) => {
-            cell.border = {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            };
-          });
-        }
-      });
+      const dataEndRowNumber = 2 + rows.length;
+      for (let rowNumber = 2; rowNumber <= dataEndRowNumber; rowNumber += 1) {
+        const row = sheet.getRow(rowNumber);
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
+      }
+
+      const noteRow = sheet.addRow([noteText]);
+      sheet.mergeCells(`A${noteRow.number}:E${noteRow.number}`);
+      noteRow.getCell(1).alignment = { horizontal: "left" };
     }
 
     // バッファに変換してレスポンス

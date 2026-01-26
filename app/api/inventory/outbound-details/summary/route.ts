@@ -137,14 +137,22 @@ export async function POST(request: Request) {
       { header: "数量", key: "count", width: 8 },
     ];
 
-    for (const size of ["25ml中性緩衝", "生検用 30ml", "リンパ節用 40ml"] as const) {
+    const sizes = ["25ml中性緩衝", "生検用 30ml", "リンパ節用 40ml"] as const;
+    const titleBySize: Record<(typeof sizes)[number], string> = {
+      "25ml中性緩衝": "出庫管理台帳（集計）25ml中性緩衝ホルマリン",
+      "生検用 30ml": "出庫管理台帳（集計）生検用 30mlホルマリン",
+      "リンパ節用 40ml": "出庫管理台帳（集計）リンパ節用 40mlホルマリン",
+    };
+    const noteText = "※数量は、出庫した実績回数です";
+
+    for (const size of sizes) {
       const sheet = workbook.addWorksheet(size);
       sheet.columns = columns;
 
-      sheet.insertRow(1, ["出庫管理台帳（集計）"]);
+      sheet.insertRow(1, [titleBySize[size]]);
       sheet.mergeCells("A1:E1");
       const titleCell = sheet.getCell("A1");
-      titleCell.font = { size: 20, bold: true };
+      titleCell.font = { size: 15, bold: true };
       titleCell.alignment = { horizontal: "left" };
 
       const targetRows = validOutbounds.filter((r) => r.formalin?.size === size);
@@ -194,18 +202,22 @@ export async function POST(request: Request) {
         sheet.addRow(row);
       }
 
-      sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-        if (rowNumber >= 2) {
-          row.eachCell((cell) => {
-            cell.border = {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            };
-          });
-        }
-      });
+      const dataEndRowNumber = 2 + aggregated.length;
+      for (let rowNumber = 2; rowNumber <= dataEndRowNumber; rowNumber += 1) {
+        const row = sheet.getRow(rowNumber);
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
+      }
+
+      const noteRow = sheet.addRow([noteText]);
+      sheet.mergeCells(`A${noteRow.number}:E${noteRow.number}`);
+      noteRow.getCell(1).alignment = { horizontal: "left" };
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
