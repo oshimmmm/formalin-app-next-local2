@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 
 export async function POST(req: Request) {
-  const { items }: { items: { id: number; place: string; updatedBy: string; updatedAt: string }[] } = await req.json();
+  const { items }: { items: { id: number; place: string; updatedBy: string; updatedAt: string; timestamp?: string }[] } =
+    await req.json();
   if (!items?.length) return NextResponse.json({ error: "empty" }, { status: 400 });
 
   const now = new Date();
   const ids = items.map((i) => i.id);
   // 全件同じ出庫先なので、先頭要素から取得
   const place = items[0].place;
+  const scheduledTimestamp = items[0].timestamp ? new Date(items[0].timestamp) : null;
+  const timestampToUse =
+    scheduledTimestamp && !Number.isNaN(scheduledTimestamp.getTime()) ? scheduledTimestamp : now;
 
   await prisma.$transaction([
     // ① まとめてステータス／場所／タイムスタンプを更新
@@ -17,7 +21,7 @@ export async function POST(req: Request) {
       data: {
         status: "出庫済み",
         place,
-        timestamp: now,
+        timestamp: timestampToUse,
       },
     }),
 

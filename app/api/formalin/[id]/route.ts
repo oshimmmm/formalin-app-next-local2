@@ -41,13 +41,24 @@ export async function PUT(
       newPlace,
     } = body ?? {};
 
+    const parsedTimestamp = timestamp ? toDate(timestamp) : undefined;
+    if (parsedTimestamp && Number.isNaN(parsedTimestamp.getTime())) {
+      return NextResponse.json(
+        { success: false, message: "timestamp is invalid" },
+        { status: 400 }
+      );
+    }
+    const timestampToUse =
+      parsedTimestamp ??
+      (status === "出庫済み" ? new Date() : undefined);
+
     const updated = await prisma.formalin.update({
       where: { id },
       data: {
         key:         key        ?? undefined,
         place:       place      ?? undefined,
         status:      status     ?? undefined,
-        timestamp:   timestamp  ? toDate(timestamp) : undefined,
+        timestamp:   timestampToUse,
         size:        size       ?? undefined,
         expired:     expired    ? toDate(expired)   : undefined,
         lot_number:  lotNumber  ?? undefined,

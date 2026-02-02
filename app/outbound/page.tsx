@@ -23,6 +23,7 @@ export default function OutboundPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const [selectedPlace, setSelectedPlace] = useState("");
+  const [scheduledDate, setScheduledDate] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [filteredCount, setFilteredCount] = useState(0);
   const [modalMessage, setModalMessage] = useState<string>("");
@@ -89,6 +90,13 @@ export default function OutboundPage() {
     }
   };
 
+  const getScheduledTimestamp = (): Date | null => {
+    if (!scheduledDate) return null;
+    const [y, m, d] = scheduledDate.split("-").map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d);
+  };
+
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     const target = e.target as HTMLInputElement;
@@ -123,6 +131,8 @@ export default function OutboundPage() {
       // フォーカスはモーダル閉鎖時に onClose で戻します
       return;
     }
+
+    const scheduledTimestamp = getScheduledTimestamp();
 
     // ① 箱バーコード
     if (serialNumber === "0000") {
@@ -178,6 +188,7 @@ export default function OutboundPage() {
             place: selectedPlace,
             updatedBy: username,
             updatedAt: nowIso,
+            timestamp: scheduledTimestamp ? scheduledTimestamp.toISOString() : undefined,
           }));
 
           const res = await fetch("/api/formalin/bulk-outbound", {
@@ -225,10 +236,11 @@ export default function OutboundPage() {
         return;
       }
 
+      const timestampForOutbound = scheduledTimestamp ?? undefined;
       await editFormalin(item.id, {
         status: "出庫済み",
         place: selectedPlace,
-        timestamp: new Date(),
+        timestamp: timestampForOutbound,
         updatedBy: username,
         updatedAt: new Date(),
         oldStatus: item.status,
@@ -254,27 +266,42 @@ export default function OutboundPage() {
       <h1 className="text-3xl font-bold mt-4 mb-10 ml-10">出庫する</h1>
 
       {/* 出庫先セレクト */}
-      <label htmlFor="place-select" className="text-2xl ml-10">出庫先を選択してください: </label>
-      <select
-        id="place-select"
-        ref={selectRef}
-        value={selectedPlace}
-        onChange={(e) => setSelectedPlace(e.target.value)}
-        className="text-2xl border border-gray-300 rounded p-2 w-1/5"
-      >
-        <option value=""></option>
-        <option value="病理">病理</option>
-        <option value="手術室">手術室</option>
-        <option value="内視鏡">内視鏡</option>
-        <option value="放診">放診</option>
-        <option value="泌尿器">泌尿器</option>
-        <option value="頭頸部">頭頸部</option>
-        <option value="婦人科">婦人科</option>
-        <option value="外科">外科</option>
-        <option value="内科">内科</option>
-        <option value="病棟">病棟</option>
-        <option value="血液(マルク用)">血液(マルク用)</option>
-      </select>
+      <div className="ml-10 flex items-center">
+        <label htmlFor="place-select" className="text-2xl">出庫先を選択してください: </label>
+        <select
+          id="place-select"
+          ref={selectRef}
+          value={selectedPlace}
+          onChange={(e) => setSelectedPlace(e.target.value)}
+          className="text-2xl border border-gray-300 rounded p-2 w-1/5 ml-2"
+        >
+          <option value=""></option>
+          <option value="病理">病理</option>
+          <option value="手術室">手術室</option>
+          <option value="内視鏡">内視鏡</option>
+          <option value="放診">放診</option>
+          <option value="泌尿器">泌尿器</option>
+          <option value="頭頸部">頭頸部</option>
+          <option value="婦人科">婦人科</option>
+          <option value="外科">外科</option>
+          <option value="内科">内科</option>
+          <option value="病棟">病棟</option>
+          <option value="血液(マルク用)">血液(マルク用)</option>
+        </select>
+
+        <div className="ml-6 flex items-center">
+          <label htmlFor="scheduled-date" className="text-base text-gray-600 mr-2">
+            使用予定日を指定したい場合は選択→
+          </label>
+          <input
+            id="scheduled-date"
+            type="date"
+            value={scheduledDate}
+            onChange={(e) => setScheduledDate(e.target.value)}
+            className="text-xl border border-gray-300 rounded p-2"
+          />
+        </div>
+      </div>
 
       {/* バーコード入力と表示件数 */}
       <div className="relative ml-10 mt-4 flex items-center">

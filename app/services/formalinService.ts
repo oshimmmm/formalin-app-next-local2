@@ -8,6 +8,7 @@ function mapRawToFormalin(item: RawFormalin): Formalin {
   return {
     ...item,
     timestamp: item.timestamp ? new Date(item.timestamp) : (null as unknown as Date),
+    updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
     expired: item.expired ? new Date(item.expired) : (null as unknown as Date),
     lotNumber: item.lot_number,
     boxNumber: item.box_number,

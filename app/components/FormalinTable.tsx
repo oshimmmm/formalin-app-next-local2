@@ -9,7 +9,7 @@ type SortableKey =
   | "key"
   | "place"
   | "status"
-  | "timestamp"
+  | "updatedAt"
   | "expired"
   | "size"
   | "lotNumber";
@@ -79,11 +79,11 @@ export default function FormalinTable({
     key: uniqueKeyValues,
     place: Array.from(new Set(formalinList.map((item) => item.place))),
     status: Array.from(new Set(formalinList.map((item) => item.status))),
-    timestamp: Array.from(
+    updatedAt: Array.from(
       new Set(
         formalinList.map((item) =>
-          item.timestamp
-            ? item.timestamp.toLocaleDateString("ja-JP")
+          item.updatedAt
+            ? item.updatedAt.toLocaleDateString("ja-JP")
             : "未設定"
         )
       )
@@ -126,6 +126,10 @@ export default function FormalinTable({
         return item.timestamp
           ? item.timestamp.toLocaleDateString("ja-JP") === value
           : false;
+      if (key === "updatedAt")
+        return item.updatedAt
+          ? item.updatedAt.toLocaleDateString("ja-JP") === value
+          : false;
       if (key === "expired")
         return item.expired ? item.expired.toLocaleString() === value : false;
       if (key === "key")
@@ -152,12 +156,12 @@ export default function FormalinTable({
         return sortConfig.direction === "asc" ? comp : -comp;
       }
 
-      let aValue: string | number | Date = a[sortConfig.key];
-      let bValue: string | number | Date = b[sortConfig.key];
+      let aValue: string | number | Date | undefined = a[sortConfig.key];
+      let bValue: string | number | Date | undefined = b[sortConfig.key];
 
-      if (sortConfig.key === "timestamp" && a.timestamp && b.timestamp) {
-        aValue = a.timestamp.getTime();
-        bValue = b.timestamp.getTime();
+      if (sortConfig.key === "updatedAt" && a.updatedAt && b.updatedAt) {
+        aValue = a.updatedAt.getTime();
+        bValue = b.updatedAt.getTime();
       } else if (sortConfig.key === "expired" && a.expired && b.expired) {
         aValue = a.expired.getTime();
         bValue = b.expired.getTime();
@@ -166,8 +170,14 @@ export default function FormalinTable({
         bValue = bValue.toLowerCase();
       }
 
-      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+      if (aValue === undefined && bValue !== undefined) return sortConfig.direction === "asc" ? 1 : -1;
+      if (aValue !== undefined && bValue === undefined) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aValue === undefined && bValue === undefined) return 0;
+
+      if (aValue !== undefined && bValue !== undefined) {
+        if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+      }
       return 0;
     });
   }, [filteredFormalinList, sortConfig]);
@@ -201,11 +211,11 @@ export default function FormalinTable({
   // 使用予定日の計算
   const calcNextBusinessDay = (
     base: Date,
-    opts?: { excludeTueThu?: boolean }
+    opts?: { excludeTueThu?: boolean; includeBase?: boolean }
   ): Date => {
     const d = new Date(base);
     d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + 1); // 翌日から探索
+    if (!opts?.includeBase) d.setDate(d.getDate() + 1); // 翌日から探索
     while (true) {
       const dow = d.getDay(); // 0=Sun, 6=Sat
       const isWeekend = dow === 0 || dow === 6;
@@ -219,11 +229,14 @@ export default function FormalinTable({
     if (!ts) return "--";
     const groupA = ["内視鏡", "放診", "頭頸部", "婦人科", "外科"];
     if (groupA.includes(place)) {
-      const next = calcNextBusinessDay(ts);
+      const next = calcNextBusinessDay(ts, { includeBase: true });
       return next.toLocaleDateString("ja-JP");
     }
     if (place === "泌尿器") {
-      const next = calcNextBusinessDay(ts, { excludeTueThu: true });
+      const next = calcNextBusinessDay(ts, {
+        excludeTueThu: true,
+        includeBase: true,
+      });
       return next.toLocaleDateString("ja-JP");
     }
     return "--";
@@ -299,18 +312,18 @@ export default function FormalinTable({
             {/* 最終更新日時 */}
             <th className="px-4 py-2 text-left text-sm font-medium text-gray-700">
               <div
-                onClick={() => requestSort("timestamp")}
-                style={getHeaderStyle("timestamp")}
+                onClick={() => requestSort("updatedAt")}
+                style={getHeaderStyle("updatedAt")}
               >
                 最終更新日時
               </div>
               <select
-                value={selectedFilters.timestamp || ""}
-                onChange={(e) => handleFilterChange("timestamp", e.target.value)}
+                value={selectedFilters.updatedAt || ""}
+                onChange={(e) => handleFilterChange("updatedAt", e.target.value)}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
               >
                 <option value="">すべて</option>
-                {uniqueValues.timestamp.map((v) => (
+                {uniqueValues.updatedAt.map((v) => (
                   <option key={v} value={v}>
                     {v}
                   </option>
@@ -430,8 +443,8 @@ export default function FormalinTable({
 
               {/* 最終更新日時 */}
               <td className="px-4 py-2">
-                {f.timestamp
-                  ? f.timestamp.toLocaleString("ja-JP", {
+                {f.updatedAt
+                  ? f.updatedAt.toLocaleString("ja-JP", {
                     timeZone: "Asia/Tokyo",
                   })
                   : "--"}

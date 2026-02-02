@@ -4,6 +4,7 @@ export interface Formalin {
     place: string;
     status: string;
     timestamp: Date;
+    updatedAt?: Date;
     size: string;
     expired: Date;
     lotNumber: string;
@@ -35,6 +36,7 @@ export interface RawFormalin {
   productCode: string;
   returnBy: string; // 返却先
   timestamp: string | null;
+  updatedAt?: string | null;
   expired: string | null;
   histories: RawHistoryEntry[]; // ここを RawHistoryEntry[] とする
 }
