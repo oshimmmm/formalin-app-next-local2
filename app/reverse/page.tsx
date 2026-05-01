@@ -99,6 +99,7 @@ export default function ReversePage() {
       });
 
       // 再読込
+      try { await new Audio("/se_yma08.wav").play(); } catch {}
       await load();
       setErrorMessage("");
     } catch (err) {
