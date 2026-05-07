@@ -1,14 +1,13 @@
 // app/submission/page.tsx
 "use client";
 
-import React, { useContext, useEffect, useRef, useState, KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useSession } from "next-auth/react";
 import { Formalin } from "../types/Formalin";
 import { parseFormalinCode } from "../utils/parseFormalinCode";
 import FormalinTable from "../components/FormalinTable";
 import ErrorModal from "../components/ErrorModal";
-import { getFormalinPage } from "../services/formalinService";
-import { FormalinContext } from "../Providers/FormalinProvider";
+import { getFormalinPage, submitFormalinData } from "../services/formalinService";
 
 function jstTodayRange(): { from: Date; to: Date } {
   const now = new Date();
@@ -24,7 +23,6 @@ function jstTodayRange(): { from: Date; to: Date } {
 export default function SubmissionPage() {
   const { data: session } = useSession();
   const username = session?.user?.username || "anonymous";
-  const { editFormalin } = useContext(FormalinContext)!;
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -113,50 +111,21 @@ export default function SubmissionPage() {
       setErrorMessage("");
 
       const { serialNumber, boxNumber, lotNumber, productCode } = parsed;
-      const existingRes = await getFormalinPage(1, 1, {
-        includeSubmitted: true,
-        lotNumber, boxNumber, productCode, key: serialNumber,
-      });
-      const existing = existingRes.items[0];
 
-      if (!existing) {
-        setModalMessage("ホルマリンが見つかりません。入庫してください。");
-        setIsModalOpen(true);
-        return;
-      }
-      if (existing.status !== "出庫済み") {
-        setModalMessage("このホルマリンは出庫済みの中にありません。出庫されていないか、既に提出済みです。");
-        setIsModalOpen(true);
-        return;
-      }
-
-      const place = existing.place ?? "";
-      const isFromOR = place.startsWith("手術室");
-      const hasSelection = selectedReturnBy.trim().length > 0;
-
-      if (isFromOR && !hasSelection) {
-        setModalMessage("提出元を選択してください（手術室からの返却は提出元の選択が必須です）。");
-        setIsModalOpen(true);
-        return;
-      }
-      if (!isFromOR && hasSelection) {
-        setModalMessage(`このホルマリンは手術室ではなく「${place || "不明"}」に出庫されています。提出元は空欄にしてください。`);
-        setIsModalOpen(true);
-        return;
-      }
-
-      await editFormalin(existing.id, {
+      const submitResult = await submitFormalinData({
+        lotNumber,
+        boxNumber,
+        productCode,
         key: serialNumber,
-        status: "提出済み",
-        timestamp: new Date(),
         returnBy: selectedReturnBy,
         updatedBy: username,
-        updatedAt: new Date(),
-        oldStatus: existing.status,
-        newStatus: "提出済み",
-        oldPlace: existing.place,
-        newPlace: "病理へ提出",
       });
+
+      if (!submitResult.success) {
+        setModalMessage(submitResult.message);
+        setIsModalOpen(true);
+        return;
+      }
 
       try { await new Audio("/se_yma08.wav").play(); } catch {}
       setErrorMessage("");

@@ -160,6 +160,41 @@ export async function updateFormalinData(
   await axios.put(`${API_BASE_URL}/${id}`, body);
 }
 
+export type SubmitFormalinPayload = {
+  lotNumber: string;
+  boxNumber: string;
+  productCode: string;
+  key: string;
+  returnBy: string;
+  updatedBy: string;
+};
+
+export type SubmitFormalinResult =
+  | { success: true; id: number }
+  | { success: false; message: string; status: number };
+
+export async function submitFormalinData(
+  payload: SubmitFormalinPayload
+): Promise<SubmitFormalinResult> {
+  const res = await axios.post<{
+    success: boolean;
+    id?: number;
+    message?: string;
+  }>("/api/formalin/submit", payload, {
+    validateStatus: (status) => status < 500,
+  });
+
+  if (res.data.success && typeof res.data.id === "number") {
+    return { success: true, id: res.data.id };
+  }
+
+  return {
+    success: false,
+    message: res.data.message ?? "提出処理中に不明なエラーが発生しました。",
+    status: res.status,
+  };
+}
+
 export async function deleteFormalinData(id: number): Promise<void> {
   await axios.delete(`${API_BASE_URL}/${id}`);
 }
