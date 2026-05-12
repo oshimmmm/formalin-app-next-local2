@@ -28,6 +28,9 @@ export default function OutboundPage() {
   const [filteredCount, setFilteredCount] = useState(0);
   const [modalMessage, setModalMessage] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [confirmMessage, setConfirmMessage] = useState<string>("");
+  const [isConfirmOpen, setIsConfirmOpen] = useState<boolean>(false);
+  const confirmResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
 
   // ★ バーコード入力へフォーカスするユーティリティ
   const focusInput = () => {
@@ -42,10 +45,10 @@ export default function OutboundPage() {
 
   // モーダル開閉・ローディング状態の変化後にも自動で入力欄へ戻す
   useEffect(() => {
-    if (!isModalOpen && !loading) {
+    if (!isModalOpen && !isConfirmOpen && !loading) {
       focusInput();
     }
-  }, [isModalOpen, loading]);
+  }, [isModalOpen, isConfirmOpen, loading]);
 
   // 以前は select に初期フォーカスしていたが、要望に合わせて削除
   // useEffect(() => selectRef.current?.focus(), []);
@@ -97,6 +100,28 @@ export default function OutboundPage() {
     return new Date(y, m - 1, d);
   };
 
+  const isExpired = (expirationDate?: Date | null): boolean => {
+    if (!expirationDate || Number.isNaN(expirationDate.getTime())) return false;
+    const nowJST = new Date(new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }));
+    return expirationDate < nowJST;
+  };
+
+  const confirmExpiredOutbound = () =>
+    new Promise<boolean>((resolve) => {
+      confirmResolverRef.current = resolve;
+      setConfirmMessage("このホルマリンは期限切れです。出庫しますか？");
+      setIsConfirmOpen(true);
+    });
+
+  const handleConfirmResponse = (confirmed: boolean) => {
+    const resolve = confirmResolverRef.current;
+    confirmResolverRef.current = null;
+    setIsConfirmOpen(false);
+    setConfirmMessage("");
+    resolve?.(confirmed);
+    if (!confirmed) focusInput();
+  };
+
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     const target = e.target as HTMLInputElement;
@@ -115,7 +140,7 @@ export default function OutboundPage() {
       return;
     }
 
-    const parsed = parseFormalinCode(code);
+    const parsed = parseFormalinCode(code, { checkExpiration: false });
     if (!parsed) {
       setModalMessage("無効なコードです。");
       setIsModalOpen(true);
@@ -123,7 +148,7 @@ export default function OutboundPage() {
       return;
     }
 
-    const { serialNumber, boxNumber, lotNumber, productCode, size } = parsed;
+    const { serialNumber, boxNumber, lotNumber, productCode, size, expirationDate } = parsed;
 
     if (!selectedPlace) {
       setModalMessage("出庫先を選択してください。");
@@ -163,6 +188,11 @@ export default function OutboundPage() {
           setModalMessage("箱の内容数が想定と一致しません。");
           setIsModalOpen(true);
           return;
+        }
+
+        if (isExpired(expirationDate)) {
+          const ok = await confirmExpiredOutbound();
+          if (!ok) return;
         }
 
         const ok = window.confirm(`${selectedPlace} に ${size} を ${inCount} 個出庫します。よろしいですか？`);
@@ -234,6 +264,11 @@ export default function OutboundPage() {
         setModalMessage("このホルマリンは既に出庫済みか提出済みです。");
         setIsModalOpen(true);
         return;
+      }
+
+      if (isExpired(item.expired ?? expirationDate)) {
+        const ok = await confirmExpiredOutbound();
+        if (!ok) return;
       }
 
       const timestampForOutbound = scheduledTimestamp ?? undefined;
@@ -359,6 +394,32 @@ export default function OutboundPage() {
           focusInput(); // ★ モーダル閉じたら入力欄へ
         }}
       />
+
+      {isConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl w-1/3 max-w-md p-6">
+            <h2 className="text-2xl font-semibold mb-4">確認</h2>
+            <p className="mb-6">{confirmMessage}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => handleConfirmResponse(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-900 rounded hover:bg-gray-300"
+              >
+                いいえ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmResponse(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                autoFocus
+              >
+                はい
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

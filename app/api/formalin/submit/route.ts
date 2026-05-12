@@ -10,7 +10,7 @@ type SubmitResult =
   | {
       ok: false;
       status: 400 | 404 | 409;
-      body: { success: false; message: string };
+      body: { success: false; message: string; confirmationRequired?: "expired" };
     };
 
 const INVALID_REQUEST_MESSAGE = "無効なコードです。もう一度読み込んでください。";
@@ -19,9 +19,17 @@ const NOT_OUTBOUND_MESSAGE =
   "このホルマリンは出庫済みの中にありません。出庫されていないか、既に提出済みです。";
 const RETURN_BY_REQUIRED_MESSAGE =
   "提出元を選択してください（手術室からの返却は提出元の選択が必須です）。";
+const EXPIRED_CONFIRMATION_REQUIRED_MESSAGE =
+  "このホルマリンは期限切れです。提出しますか？";
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function isExpired(expired?: Date | null): boolean {
+  if (!expired || Number.isNaN(expired.getTime())) return false;
+  const nowJST = new Date(new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }));
+  return expired < nowJST;
 }
 
 export async function POST(request: Request) {
@@ -33,6 +41,7 @@ export async function POST(request: Request) {
     const key = asString(body?.key);
     const returnBy = typeof body?.returnBy === "string" ? body.returnBy : "";
     const updatedBy = asString(body?.updatedBy) ?? "anonymous";
+    const allowExpired = body?.allowExpired === true;
 
     if (!lotNumber || !boxNumber || !productCode || !key) {
       return NextResponse.json(
@@ -56,6 +65,7 @@ export async function POST(request: Request) {
           key: true,
           status: true,
           place: true,
+          expired: true,
         },
       });
 
@@ -94,6 +104,18 @@ export async function POST(request: Request) {
           body: {
             success: false,
             message: `このホルマリンは手術室ではなく「${place || "不明"}」に出庫されています。提出元は空欄にしてください。`,
+          },
+        };
+      }
+
+      if (isExpired(existing.expired) && !allowExpired) {
+        return {
+          ok: false,
+          status: 409,
+          body: {
+            success: false,
+            message: EXPIRED_CONFIRMATION_REQUIRED_MESSAGE,
+            confirmationRequired: "expired",
           },
         };
       }

@@ -167,11 +167,12 @@ export type SubmitFormalinPayload = {
   key: string;
   returnBy: string;
   updatedBy: string;
+  allowExpired?: boolean;
 };
 
 export type SubmitFormalinResult =
   | { success: true; id: number }
-  | { success: false; message: string; status: number };
+  | { success: false; message: string; status: number; confirmationRequired?: "expired" };
 
 export async function submitFormalinData(
   payload: SubmitFormalinPayload
@@ -180,6 +181,7 @@ export async function submitFormalinData(
     success: boolean;
     id?: number;
     message?: string;
+    confirmationRequired?: "expired";
   }>("/api/formalin/submit", payload, {
     validateStatus: (status) => status < 500,
   });
@@ -192,6 +194,7 @@ export async function submitFormalinData(
     success: false,
     message: res.data.message ?? "提出処理中に不明なエラーが発生しました。",
     status: res.status,
+    confirmationRequired: res.data.confirmationRequired,
   };
 }
 

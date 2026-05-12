@@ -37,6 +37,9 @@ export default function SubmissionPage() {
   const [modalMessage, setModalMessage] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [confirmMessage, setConfirmMessage] = useState<string>("");
+  const [isConfirmOpen, setIsConfirmOpen] = useState<boolean>(false);
+  const confirmResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
 
   const [selectedReturnBy, setSelectedReturnBy] = useState<string>("");
   const [pendingTotal, setPendingTotal] = useState<number>(0);
@@ -87,8 +90,24 @@ export default function SubmissionPage() {
 
   // モーダルが閉じたときも保険でフォーカス復帰
   useEffect(() => {
-    if (!isModalOpen) focusInput();       // ★ モーダル閉時
-  }, [isModalOpen]);
+    if (!isModalOpen && !isConfirmOpen) focusInput();       // ★ モーダル閉時
+  }, [isModalOpen, isConfirmOpen]);
+
+  const confirmExpiredSubmission = () =>
+    new Promise<boolean>((resolve) => {
+      confirmResolverRef.current = resolve;
+      setConfirmMessage("このホルマリンは期限切れです。提出しますか？");
+      setIsConfirmOpen(true);
+    });
+
+  const handleConfirmResponse = (confirmed: boolean) => {
+    const resolve = confirmResolverRef.current;
+    confirmResolverRef.current = null;
+    setIsConfirmOpen(false);
+    setConfirmMessage("");
+    resolve?.(confirmed);
+    if (!confirmed) focusInput();
+  };
 
   // バーコード処理
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
@@ -102,7 +121,7 @@ export default function SubmissionPage() {
     }
 
     try {
-      const parsed = parseFormalinCode(code);
+      const parsed = parseFormalinCode(code, { checkExpiration: false });
       if (!parsed) {
         setModalMessage("無効なコードです。もう一度読み込んでください。");
         setIsModalOpen(true);
@@ -112,14 +131,22 @@ export default function SubmissionPage() {
 
       const { serialNumber, boxNumber, lotNumber, productCode } = parsed;
 
-      const submitResult = await submitFormalinData({
+      const submitPayload = {
         lotNumber,
         boxNumber,
         productCode,
         key: serialNumber,
         returnBy: selectedReturnBy,
         updatedBy: username,
-      });
+      };
+
+      let submitResult = await submitFormalinData(submitPayload);
+
+      if (!submitResult.success && submitResult.confirmationRequired === "expired") {
+        const ok = await confirmExpiredSubmission();
+        if (!ok) return;
+        submitResult = await submitFormalinData({ ...submitPayload, allowExpired: true });
+      }
 
       if (!submitResult.success) {
         setModalMessage(submitResult.message);
@@ -231,6 +258,32 @@ export default function SubmissionPage() {
           focusInput();                // ★ モーダル閉じたら入力欄へ
         }}
       />
+
+      {isConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl w-1/3 max-w-md p-6">
+            <h2 className="text-2xl font-semibold mb-4">確認</h2>
+            <p className="mb-6">{confirmMessage}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => handleConfirmResponse(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-900 rounded hover:bg-gray-300"
+                autoFocus
+              >
+                いいえ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmResponse(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                はい
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
