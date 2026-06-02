@@ -10,6 +10,7 @@ export const config = {
     "/inbound/:path*",   // /inbound 以下を保護
     "/outbound/:path*",
     "/admin/:path*",
+    "/reconcile/:path*",
     // ...など
   ],
 };

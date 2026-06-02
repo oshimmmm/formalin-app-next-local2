@@ -36,30 +36,26 @@ export async function POST(request: Request) {
       }).then((results) => results.length);
 
       // ─── 2) 出庫数を取得 ───
-      // 2-1) 「そのサイズに属するすべての formalinId」をまず取得
-      const allFormalinIds = await prisma.formalin.findMany({
-        where: { size },
-        select: { id: true },
-      }).then((rows) => rows.map((r) => r.id));
-
-      // 2-2) 期間開始前の各 formalinId の最終履歴を個別に findFirst で取得
+      // 2-1〜2-2) 期間開始前の各 formalin の最終履歴を1クエリで取得
+      // formalin 1本ごとに findFirst を投げるとコネクションプールを食い潰す（P2024）ため、
+      // distinct で「formalinId ごとに updated_at が最大の1行」を1クエリで取得する。
       const initialWasCounted = new Map<number, boolean>();
-      await Promise.all(
-        allFormalinIds.map(async (formalinId) => {
-          const lastHistory = await prisma.history.findFirst({
-            where: {
-              formalinId,
-              updated_at: { lt: start },
-            },
-            orderBy: { updated_at: "desc" },
-            select: { new_status: true },
-          });
-          const was = lastHistory
-            ? lastHistory.new_status === "出庫済み" || lastHistory.new_status === "提出済み"
-            : false;
-          initialWasCounted.set(formalinId, was);
-        })
-      );
+      const lastBeforeStart = await prisma.history.findMany({
+        where: {
+          updated_at: { lt: start },
+          formalin: { size },
+        },
+        orderBy: [{ formalinId: "asc" }, { updated_at: "desc" }],
+        distinct: ["formalinId"],
+        select: { formalinId: true, new_status: true },
+      });
+      for (const h of lastBeforeStart) {
+        if (h.formalinId == null) continue;
+        initialWasCounted.set(
+          h.formalinId,
+          h.new_status === "出庫済み" || h.new_status === "提出済み"
+        );
+      }
 
       // 2-3) 期間内のすべての履歴を取得
       const periodHistories = await prisma.history.findMany({

@@ -59,13 +59,14 @@ export default function Header() {
     { path: "/lymph", label: "リンパ節用" },
     { path: "/bk", label: "BK" },
     { path: "/admin", label: "ホルマリン編集" },
-    { path: "/user", label: "ユーザー" }, // ↓↓↓ ここから「その他」へ退避
+    { path: "/reconcile", label: "出庫数照合" }, // ↓↓↓ ここから「その他」へ退避
+    { path: "/user", label: "ユーザー" },
     { path: "/backup", label: "バックアップ" },
     { path: "/archive", label: "データ削除" },
   ];
 
   // 「その他」へ入れる対象
-  const overflowSet = new Set<string>(["/user", "/backup", "/archive"]);
+  const overflowSet = new Set<string>(["/reconcile", "/user", "/backup", "/archive"]);
 
   // 表示用に2分割
   const all = user.isAdmin ? [...commonLinks, ...adminLinks] : commonLinks;
