@@ -1,6 +1,6 @@
 # 職場PCの更新と、元に戻す操作
 
-**公開前のDocker検証中です。検証結果が「成功」になるまでは本番の更新を待ってください。**
+**Dockerのビルド・業務操作と、Windows PowerShell 5.1での更新・復旧テストは成功しました。** [自動検証の結果](https://github.com/oshimmmm/formalin-app-next-local2/actions/runs/39872422384)
 
 今回は Node.js / Next.js とアプリの更新です。毎日17:30のUSBバックアップの設定、DBの構造、保存データは変更しません。
 
