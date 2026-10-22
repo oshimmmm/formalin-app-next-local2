@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:22.23.4-alpine
 
 WORKDIR /app
 
@@ -8,17 +8,15 @@ RUN apk update && apk add --no-cache python3 make g++
 COPY package*.json ./
 COPY prisma ./prisma
 
-# ここで .env をコピー
-COPY .env.docker ./
-
-RUN npm install
+# ロックファイルと同じ依存関係を入れる。環境変数は実行時にComposeから渡す。
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build_only npm ci
 
 # Prisma Client生成
-RUN npx prisma generate
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build_only npx prisma generate
 
 COPY . .
 
-RUN npm run build
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build_only npm run build
 
 EXPOSE 3003
 CMD ["npm", "run", "start"]

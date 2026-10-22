@@ -1,4 +1,24 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ホルマリン管理システム
+
+職場の Windows PC 上の Docker Compose で動かす Next.js アプリです。
+
+- [職場 PC の短い更新・復旧手順（モバイルでも閲覧可能）](UPDATE.md)
+- [詳しい更新・復旧手順](docs/職場PC更新手順.md)
+- [セキュリティ更新の検証結果](docs/更新版検証結果.md)
+
+本番更新は、上記の手順書を使用してください。Node.js は Docker イメージに含まれます。
+
+## 本番と分離した更新版の検証
+
+Docker Desktop を起動した開発用 Windows PC で、リポジトリのフォルダーから実行します。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\test-security-update.ps1
+```
+
+`docker-compose.test.yml` 単独で、ランダムな Compose プロジェクト名、一時的な空の PostgreSQL、ローカル限定のポート `33003` を使います。本番の `.env`、DB、保存ボリュームは使用しません。検証後はそのテスト用コンテナとネットワークを終了します。
+
+以下は開発サーバーを使う場合の説明です。本番運用は `next start` を使用します。
 
 ## Getting Started
 

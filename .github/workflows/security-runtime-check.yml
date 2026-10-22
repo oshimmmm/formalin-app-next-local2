@@ -1,0 +1,111 @@
+name: Security runtime checks
+
+on:
+  push:
+    branches:
+      - 'codex/**'
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-runtime-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-runtime:
+    name: Docker build and business operations
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TEST_PROJECT: formalin-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      COMPOSE_ANSI: never
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Confirm the isolated test configuration
+        run: |
+          test ! -e .env
+          test ! -e .env.docker
+          docker version
+          docker compose version
+          docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml config --quiet
+
+      - name: Build the production Dockerfile with patched runtime
+        run: docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml build --pull formalin-test-app
+
+      - name: Start the disposable database and wait for health
+        run: docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml up -d --wait --wait-timeout 90 formalin-test-db
+
+      - name: Apply schema to the disposable database only
+        run: |
+          docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml run --rm --no-deps -T \
+            formalin-test-app node node_modules/prisma/build/index.js migrate deploy
+
+      - name: Start the built application
+        run: docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml up -d --no-deps --no-build --pull never formalin-test-app
+
+      - name: Verify versions inside the running Alpine container
+        run: |
+          docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml exec -T formalin-test-app \
+            node -e "const assert=require('node:assert/strict'); assert.equal(process.versions.node,'22.23.4'); assert.equal(require('next/package.json').version,'15.5.28'); assert.equal(require('react/package.json').version,'19.0.9'); assert.equal(require('react-dom/package.json').version,'19.0.9'); console.log('PASS: running Docker image contains the patched Node.js, Next.js, and React versions');"
+
+      - name: Wait for the login page
+        run: |
+          for attempt in $(seq 1 45); do
+            status=$(curl --silent --max-time 5 --output /dev/null --write-out '%{http_code}' http://127.0.0.1:33003/login || true)
+            if [ "$status" = '200' ]; then
+              echo 'PASS: login page returns HTTP 200'
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'The Docker application did not become ready.' >&2
+          exit 1
+
+      - name: Exercise login, business operations, exports, and cleanup
+        run: |
+          docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml exec -T \
+            -e SMOKE_TEST_ALLOW_WRITE=isolated-test-only \
+            -e SMOKE_BASE_URL=http://127.0.0.1:3003 \
+            formalin-test-app node scripts/smoke-test.mjs
+
+      - name: Show isolated stack diagnostics on failure
+        if: failure()
+        run: |
+          docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml ps --all
+          docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml logs --no-color --tail 100
+
+      - name: Remove only this run's disposable test stack
+        if: always()
+        run: docker compose -p "$TEST_PROJECT" -f docker-compose.test.yml down --volumes --remove-orphans
+
+  windows-helpers:
+    name: Windows PowerShell 5.1 update and rollback guards
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Exercise helpers with fake Docker and HTTP commands
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5) {
+            throw 'This job must run Windows PowerShell 5.1.'
+          }
+          & .\scripts\test-production-helpers.ps1

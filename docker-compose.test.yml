@@ -1,0 +1,32 @@
+# 本番のComposeと組み合わせず、必ず -f docker-compose.test.yml 単独で使う。
+services:
+  formalin-test-db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: formalin_test
+      POSTGRES_PASSWORD: isolated-test-only
+      POSTGRES_DB: formalin_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U formalin_test -d formalin_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    # 本番ボリュームを参照しない。検証終了時に破棄できる一時DB。
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  formalin-test-app:
+    image: formalin-security-test:20261023
+    build: .
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      DATABASE_URL: postgresql://formalin_test:isolated-test-only@formalin-test-db:5432/formalin_test
+      NEXTAUTH_URL: http://localhost:33003
+      NEXTAUTH_SECRET: isolated-test-secret-never-use-in-production-20261023
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      formalin-test-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:33003:3003"
