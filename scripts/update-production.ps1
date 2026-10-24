@@ -17,6 +17,7 @@ $statePath = $null
 $swapAttempted = $false
 $originalConsoleEncoding = [Console]::OutputEncoding
 $originalOutputEncoding = $OutputEncoding
+. (Join-Path $PSScriptRoot 'host-disk-space.ps1')
 
 function Invoke-Docker {
     param([string[]]$DockerArguments)
@@ -91,6 +92,7 @@ try {
     # Docker emits UTF-8 JSON, including Japanese Windows user/folder names.
     [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
     $OutputEncoding = [Console]::OutputEncoding
+    Assert-HostDiskSpace -WorkspacePath $deployDir
     if (-not (Test-Path -LiteralPath $composeFile -PathType Leaf)) { throw 'docker-compose.yml was not found.' }
     $backup = Get-Item -LiteralPath $BackupFile -ErrorAction Stop
     if ($backup.PSIsContainer -or $backup.Length -le 0) { throw 'BackupFile must be an existing nonempty pg_dump file.' }
@@ -200,6 +202,14 @@ try {
             throw 'The configured application network does not match the running app/database network.'
         }
     }
+    $oldImage = (Invoke-Docker @('inspect', '--format', '{{.Image}}', $appName) -join '').Trim()
+    $imageSizeText = (Invoke-Docker @('image', 'inspect', '--format', '{{.Size}}', $oldImage) -join '').Trim()
+    [long]$oldImageBytes = 0
+    if (-not [long]::TryParse($imageSizeText, [ref]$oldImageBytes) -or $oldImageBytes -le 0) {
+        throw 'Cannot determine the old image size for the rollback archive disk budget.'
+    }
+    [long]$archiveBudget = [math]::Ceiling([double]$oldImageBytes * 1.1)
+    Assert-HostDiskSpace -WorkspacePath $deployDir -ExtraWorkspaceBytes ($archiveBudget + [long]$backup.Length)
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
     $backupDir = Join-Path (Join-Path $deployDir '.deployment-backups') $stamp
     New-Item -ItemType Directory -Path $backupDir -ErrorAction Stop | Out-Null
@@ -222,7 +232,6 @@ try {
     }
     Write-Host 'Custom-format dump table of contents verified; this is not a full restore test.'
     $statePath = Join-Path $backupDir 'state.json'
-    $oldImage = (Invoke-Docker @('inspect', '--format', '{{.Image}}', $appName) -join '').Trim()
     $oldTag = "formalin-rollback:$stamp"
     $newTag = "formalin-app-upgrade:$stamp"
     $composeSnapshot = Join-Path $backupDir 'docker-compose.before.yml'

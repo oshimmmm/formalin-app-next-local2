@@ -10,7 +10,7 @@ $fixtureRoot = Join-Path $artifactRoot ('deployment-helper-mock-' + [guid]::NewG
 $results = [System.Collections.Generic.List[object]]::new()
 $savedStateTemplate = $null
 $sourceHashes = @{}
-foreach ($name in @('update-production.ps1', 'rollback-production.ps1')) {
+foreach ($name in @('update-production.ps1', 'rollback-production.ps1', 'test-security-update.ps1', 'host-disk-space.ps1')) {
     $sourceHashes[$name] = (Get-FileHash -LiteralPath (Join-Path $workspace ('scripts\' + $name)) -Algorithm SHA256).Hash
 }
 
@@ -23,7 +23,7 @@ function New-Scenario {
     param([string]$Name, [string]$BackupMode = 'valid', [bool]$FailBuild = $false)
     $root = Join-Path $fixtureRoot $Name
     New-Item -ItemType Directory -Path (Join-Path $root 'scripts') -Force | Out-Null
-    foreach ($file in @('update-production.ps1', 'rollback-production.ps1')) {
+    foreach ($file in @('update-production.ps1', 'rollback-production.ps1', 'test-security-update.ps1', 'host-disk-space.ps1')) {
         Copy-Item -LiteralPath (Join-Path $workspace ('scripts\' + $file)) -Destination (Join-Path $root ('scripts\' + $file))
     }
     Copy-Item -LiteralPath (Join-Path $workspace 'docker-compose.yml') -Destination (Join-Path $root 'docker-compose.yml')
@@ -71,6 +71,10 @@ function New-Scenario {
         UpCalls = [System.Collections.Generic.List[object]]::new()
         HttpCalls = 0
         FailBuild = $FailBuild
+        DiskFree = [long](100GB)
+        DiskOverrides = @{}
+        DiskCalls = [System.Collections.Generic.List[string]]::new()
+        ImageSizeText = ([long](3GB)).ToString()
     }
     $global:LASTEXITCODE = 0
     return $root
@@ -203,6 +207,7 @@ function global:docker {
                 return
             }
             'inspect' {
+                if ($a[3] -eq '{{.Size}}') { return $m.ImageSizeText }
                 Assert-Mock ($a[2] -eq '--format' -and $a[3] -eq '{{.Id}}' -and $m.Tags.ContainsKey($a[4])) 'image inspect existing known tag'
                 return $m.Tags[$a[4]]
             }
@@ -238,6 +243,14 @@ function global:Invoke-WebRequest {
     return [pscustomobject]@{ StatusCode = 200 }
 }
 
+function global:Get-PSDrive {
+    param([string]$Name, [string]$PSProvider, $ErrorAction)
+    $m = $global:DeploymentMock
+    $m.DiskCalls.Add($Name)
+    $free = if ($m.DiskOverrides.ContainsKey($Name)) { $m.DiskOverrides[$Name] } else { $m.DiskFree }
+    return [pscustomobject]@{ Name = $Name; Root = ($Name + ':\'); Free = $free }
+}
+
 function Add-Result {
     param([string]$Name, [string]$Detail)
     $results.Add([pscustomobject]@{ Test = $Name; Result = 'PASS'; Detail = $Detail })
@@ -246,6 +259,67 @@ function Add-Result {
 
 New-Item -ItemType Directory -Path $fixtureRoot -Force | Out-Null
 try {
+    foreach ($entryScript in @('update-production.ps1', 'test-security-update.ps1')) {
+        $root = New-Scenario ('disk-low-' + $entryScript.Replace('.ps1', ''))
+        $global:DeploymentMock.DiskFree = [long](1GB)
+        $caught = $null
+        try {
+            if ($entryScript -eq 'update-production.ps1') { & (Join-Path $root ('scripts\' + $entryScript)) -BackupFile $global:DeploymentMock.Dump }
+            else { & (Join-Path $root ('scripts\' + $entryScript)) }
+        }
+        catch { $caught = $_ }
+        Assert-Mock ($null -ne $caught -and $caught.Exception.Message -match 'Insufficient free disk space') 'low host space must produce a clear disk error'
+        Assert-Mock ($global:DeploymentMock.Calls.Count -eq 0) 'low host space must stop before any Docker command, including cleanup'
+        Assert-Mock (-not (Test-Path -LiteralPath (Join-Path $root '.deployment-backups'))) 'low host space must not create a snapshot'
+        Add-Result ('Low workspace disk: ' + $entryScript) 'Stops before Docker/build/cleanup/snapshot when the workspace host drive has only 1 GiB free.'
+    }
+    foreach ($entryScript in @('update-production.ps1', 'test-security-update.ps1')) {
+        $root = New-Scenario ('system-disk-low-' + $entryScript.Replace('.ps1', ''))
+        $originalSystemDrive = $env:SystemDrive
+        $env:SystemDrive = 'Q:'
+        $global:DeploymentMock.DiskOverrides['Q'] = [long](1GB)
+        $caught = $null
+        try {
+            if ($entryScript -eq 'update-production.ps1') { & (Join-Path $root ('scripts\' + $entryScript)) -BackupFile $global:DeploymentMock.Dump }
+            else { & (Join-Path $root ('scripts\' + $entryScript)) }
+        }
+        catch { $caught = $_ }
+        finally { $env:SystemDrive = $originalSystemDrive }
+        Assert-Mock ($null -ne $caught -and $caught.Exception.Message -match 'Insufficient free disk space') 'separate low system drive must reject build'
+        Assert-Mock ($global:DeploymentMock.Calls.Count -eq 0) 'low system drive must stop before any Docker command'
+        Add-Result ('Low separate system disk: ' + $entryScript) 'Workspace has 100 GiB, but a distinct system drive with 1 GiB blocks Docker operations.'
+    }
+    $root = New-Scenario 'disk-boundary-and-dedup'
+    $originalSystemDrive = $env:SystemDrive
+    $env:SystemDrive = (Get-Item -LiteralPath $root).PSDrive.Name + ':'
+    $global:DeploymentMock.DiskFree = [long](10GB)
+    try {
+        . (Join-Path $root 'scripts\host-disk-space.ps1')
+        Assert-HostDiskSpace -WorkspacePath $root
+    }
+    finally { $env:SystemDrive = $originalSystemDrive }
+    Assert-Mock ($global:DeploymentMock.DiskCalls.Count -eq 1 -and $global:DeploymentMock.Calls.Count -eq 0) '10 GiB boundary must pass and shared workspace/system drive checked only once'
+    Add-Result 'Disk baseline exact boundary and drive deduplication' 'Exactly 10 GiB passes; a shared workspace/system volume is not counted twice.'
+
+    $root = New-Scenario 'archive-space-budget'
+    $global:DeploymentMock.DiskFree = [long](13GB)
+    $caught = $null
+    try { & (Join-Path $root 'scripts\update-production.ps1') -BackupFile $global:DeploymentMock.Dump } catch { $caught = $_ }
+    Assert-Mock ($null -ne $caught -and $caught.Exception.Message -match 'Insufficient free disk space') 'archive budget must reject insufficient space after baseline passes'
+    Assert-Mock (-not (Test-Path -LiteralPath (Join-Path $root '.deployment-backups'))) 'archive budget must reject before creating or copying a snapshot'
+    Assert-Mock (@($global:DeploymentMock.Calls | Where-Object { $_[0] -eq 'run' -or ($_[0] -eq 'image' -and $_[1] -ne 'inspect') -or ($_[0] -eq 'compose' -and -not ($_ -contains 'config')) }).Count -eq 0) 'archive budget must allow only read-only Docker inspection/configuration'
+    Add-Result 'Rollback archive budget includes image above 2 GiB' '13 GiB passes the baseline but rejects 10 GiB plus a 3 GiB image with 10 percent reserve and dump, before mutations.'
+
+    foreach ($sizeText in @('invalid-image-size', '0')) {
+        $root = New-Scenario ('image-size-' + $sizeText)
+        $global:DeploymentMock.ImageSizeText = $sizeText
+        $caught = $null
+        try { & (Join-Path $root 'scripts\update-production.ps1') -BackupFile $global:DeploymentMock.Dump } catch { $caught = $_ }
+        Assert-Mock ($null -ne $caught -and $caught.Exception.Message -match 'image size') 'malformed/nonpositive image size must fail safely'
+        Assert-Mock (-not (Test-Path -LiteralPath (Join-Path $root '.deployment-backups'))) 'invalid image size must not create a snapshot'
+        Add-Result ('Invalid image size rejected: ' + $sizeText) 'Rejects an unusable image size before snapshot writes or build.'
+    }
+
     $root = New-Scenario 'success-and-rollback'
     & (Join-Path $root 'scripts\update-production.ps1') -BackupFile $global:DeploymentMock.Dump
     $m = $global:DeploymentMock
@@ -389,6 +463,7 @@ try {
 finally {
     Remove-Item -LiteralPath 'Function:\docker' -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath 'Function:\Invoke-WebRequest' -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath 'Function:\Get-PSDrive' -ErrorAction SilentlyContinue
     Remove-Variable -Name DeploymentMock -Scope Global -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $fixtureRoot) {
         $resolved = (Resolve-Path -LiteralPath $fixtureRoot).Path

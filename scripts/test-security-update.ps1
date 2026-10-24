@@ -8,6 +8,7 @@ $testFile = Join-Path $repoDir 'docker-compose.test.yml'
 $testProject = 'formalin-security-' + [Guid]::NewGuid().ToString('N').Substring(0, 10)
 $composeArgs = @('compose', '--project-directory', $repoDir, '-p', $testProject, '-f', $testFile)
 $created = $false
+. (Join-Path $PSScriptRoot 'host-disk-space.ps1')
 
 function Invoke-TestDocker {
     param([string[]]$DockerArguments)
@@ -16,6 +17,7 @@ function Invoke-TestDocker {
 }
 
 try {
+    Assert-HostDiskSpace -WorkspacePath $repoDir
     Invoke-TestDocker @('info', '--format', '{{.ServerVersion}}') | Out-Host
     Invoke-TestDocker ($composeArgs + @('build', '--pull', 'formalin-test-app')) | Out-Host
     $created = $true
