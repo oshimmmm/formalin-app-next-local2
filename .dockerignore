@@ -4,5 +4,7 @@ node_modules
 .env*
 .deployment-backups
 .test-artifacts
+.database-restore-backups
+*.dump
 *.log
 *.tar

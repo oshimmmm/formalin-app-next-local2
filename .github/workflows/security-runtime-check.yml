@@ -109,3 +109,6 @@ jobs:
             throw 'This job must run Windows PowerShell 5.1.'
           }
           & .\scripts\test-production-helpers.ps1
+
+      - name: Exercise old-PC database restore guards with fake Docker
+        run: '& .\scripts\test-old-pc-database-restore.ps1'

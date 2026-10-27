@@ -44,3 +44,5 @@ next-env.d.ts
 # Local deployment snapshots and isolated test results
 /.deployment-backups/
 /.test-artifacts/
+/.database-restore-backups/
+*.dump
